@@ -5,8 +5,7 @@
   "description": "Growth Manager — SaaS B2B multitenant para crescimento orgânico orientado por dados.",
   "packageManager": "pnpm@10.34.5",
   "engines": {
-    "node": ">=24.0.0",
-    "pnpm": ">=10.34.5"
+    "node": ">=24.0.0"
   },
   "scripts": {
     "build": "turbo run build",
