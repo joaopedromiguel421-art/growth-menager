@@ -44,5 +44,6 @@ export async function createApplication(): Promise<NestFastifyApplication> {
   );
 
   await application.init();
+  await application.getHttpAdapter().getInstance().ready();
   return application;
 }
