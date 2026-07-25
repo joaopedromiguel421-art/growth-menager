@@ -1,8 +1,4 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "regions": ["gru1"],
-  "env": {
-    "SUPABASE_URL": "https://kbdqsqublmcwddtndque.supabase.co",
-    "SUPABASE_PUBLISHABLE_KEY": "sb_publishable__BLd6AWkJeN9wBla5jHr-A_j48cvfeS"
-  }
+  "regions": ["gru1"]
 }
