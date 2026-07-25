@@ -71,6 +71,9 @@ importers:
       eslint-config-prettier:
         specifier: 10.1.8
         version: 10.1.8(eslint@9.38.0)
+      next:
+        specifier: 16.2.11
+        version: 16.2.11(@playwright/test@1.62.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       prettier:
         specifier: 3.6.2
         version: 3.6.2
