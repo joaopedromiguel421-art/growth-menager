@@ -1,0 +1,58 @@
+project_id = "growth-manager"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 17
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = [
+  "http://localhost:3000/auth/callback",
+  "http://127.0.0.1:3000/auth/callback"
+]
+jwt_expiry = 900
+enable_refresh_token_rotation = true
+refresh_token_reuse_interval = 10
+enable_signup = false
+
+[auth.email]
+enable_signup = false
+double_confirm_changes = true
+enable_confirmations = true
+secure_password_change = true
+max_frequency = "1m"
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
+[auth.passkey]
+enabled = false
+
+[auth.webauthn]
+rp_display_name = "Growth Manager"
+rp_id = "localhost"
+rp_origins = ["http://localhost:3000"]
+
+[storage]
+enabled = true
+file_size_limit = "20MiB"
+
+[realtime]
+enabled = false
+
+[analytics]
+enabled = true
+

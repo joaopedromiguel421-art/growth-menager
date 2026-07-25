@@ -1,0 +1,8 @@
+node_modules
+.next
+dist
+coverage
+MazyOS
+docs/Especificacao_Mestre_Growth_Manager_v1.1.md
+pnpm-lock.yaml
+

@@ -1,0 +1,37 @@
+{
+  "name": "@growth-manager/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rimraf dist",
+    "dev": "tsx watch src/main.ts",
+    "lint": "eslint src api",
+    "start": "node dist/main.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "test:unit": "vitest run --passWithNoTests",
+    "test:contract": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@fastify/cors": "11.3.0",
+    "@fastify/helmet": "13.1.0",
+    "@growth-manager/config": "workspace:*",
+    "@growth-manager/contracts": "workspace:*",
+    "@growth-manager/database": "workspace:*",
+    "@growth-manager/domain": "workspace:*",
+    "@growth-manager/integrations": "workspace:*",
+    "@growth-manager/observability": "workspace:*",
+    "@nestjs/common": "catalog:",
+    "@nestjs/core": "catalog:",
+    "@nestjs/platform-fastify": "catalog:",
+    "@nestjs/swagger": "11.4.6",
+    "@vercel/node": "5.8.27",
+    "drizzle-orm": "catalog:",
+    "jose": "catalog:",
+    "reflect-metadata": "catalog:",
+    "rxjs": "catalog:",
+    "zod": "catalog:"
+  }
+}

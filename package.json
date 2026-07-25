@@ -1,0 +1,61 @@
+{
+  "name": "growth-manager",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Growth Manager — SaaS B2B multitenant para crescimento orgânico orientado por dados.",
+  "packageManager": "pnpm@10.34.5",
+  "engines": {
+    "node": ">=24.0.0",
+    "pnpm": ">=10.34.5"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "clean": "turbo run clean && rimraf .turbo coverage",
+    "dev": "turbo run dev --parallel",
+    "dev:web": "pnpm --filter @growth-manager/web dev",
+    "dev:api": "pnpm --filter @growth-manager/api dev",
+    "dev:worker": "pnpm --filter @growth-manager/worker dev",
+    "format:check": "prettier --check .",
+    "format:write": "prettier --write .",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:unit": "turbo run test:unit",
+    "test:db": "vitest run --config vitest.db.config.ts",
+    "test:contract": "turbo run test:contract",
+    "test:components": "pnpm --filter @growth-manager/web test:components",
+    "test:e2e": "playwright test",
+    "test:a11y": "playwright test --grep @a11y",
+    "db:generate": "pnpm --filter @growth-manager/database db:generate",
+    "db:migrate": "supabase db push",
+    "db:seed": "supabase db reset",
+    "docs:check": "node scripts/docs-check.mjs",
+    "ci": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm docs:check"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.38.0",
+    "@playwright/test": "1.62.0",
+    "@rolldown/binding-win32-x64-msvc": "1.1.5",
+    "@types/node": "24.10.1",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "@typescript-eslint/eslint-plugin": "8.46.2",
+    "@typescript-eslint/parser": "8.46.2",
+    "eslint": "9.38.0",
+    "eslint-config-prettier": "10.1.8",
+    "prettier": "3.6.2",
+    "rimraf": "6.0.1",
+    "tsx": "4.20.6",
+    "turbo": "2.10.6",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.46.2",
+    "vitest": "4.1.10"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@rolldown/binding-win32-x64-msvc",
+      "esbuild",
+      "sharp"
+    ]
+  }
+}

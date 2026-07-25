@@ -1,0 +1,165 @@
+import { sql } from "drizzle-orm";
+import { jobEnvelopeSchema, type JobEnvelope } from "@growth-manager/contracts";
+import type { DatabaseClient } from "@growth-manager/database";
+import type { TenantContext } from "@growth-manager/domain";
+import { logger } from "@growth-manager/observability";
+import { JobProcessor } from "./job-processor.js";
+
+interface QueueRecord extends Record<string, unknown> {
+  readonly msg_id: number;
+  readonly read_ct: number;
+  readonly message: unknown;
+}
+
+export interface PumpResult {
+  readonly relayed: number;
+  readonly received: number;
+  readonly completed: number;
+  readonly failed: number;
+  readonly deadLettered: number;
+}
+
+const queueNames = ["publication", "delivery", "render", "general"] as const;
+
+export class QueueWorker {
+  private readonly processor = new JobProcessor();
+
+  public constructor(private readonly client: DatabaseClient) {}
+
+  public async pump(batchSize = 10): Promise<PumpResult> {
+    const relayed = await this.relayOutbox(batchSize);
+    const accumulator = { relayed, received: 0, completed: 0, failed: 0, deadLettered: 0 };
+
+    for (const queue of queueNames) {
+      const records = await this.read(queue, batchSize);
+      accumulator.received += records.length;
+      for (const record of records) {
+        const outcome = await this.handle(queue, record);
+        accumulator[outcome] += 1;
+      }
+    }
+
+    return accumulator;
+  }
+
+  private async relayOutbox(limit: number): Promise<number> {
+    const result = await this.client.database.execute<{ relayed: number }>(
+      sql`select app.relay_outbox(${limit}) as relayed`
+    );
+    return result[0]?.relayed ?? 0;
+  }
+
+  private async read(queue: string, limit: number): Promise<readonly QueueRecord[]> {
+    return this.client.database.execute<QueueRecord>(
+      sql`select msg_id, read_ct, message from app.queue_read(${queue}, 120, ${limit})`
+    );
+  }
+
+  private async handle(
+    queue: string,
+    record: QueueRecord
+  ): Promise<"completed" | "failed" | "deadLettered"> {
+    const parsed = jobEnvelopeSchema.safeParse(record.message);
+    if (!parsed.success) {
+      await this.deadLetter(queue, record, "GM-JOB-SCHEMA", parsed.error.issues);
+      return "deadLettered";
+    }
+
+    const job = parsed.data;
+    const context = this.systemContext(job);
+    try {
+      const result = await this.client.withTenant(context, async (database) => {
+        const claimed = await database.execute<{ id: string }>(sql`
+          insert into app.inbox_messages (
+            id, tenant_id, consumer, message_id, received_at
+          ) values (
+            extensions.gen_random_uuid(), ${job.tenant_id}, ${queue}, ${job.id}, now()
+          )
+          on conflict (consumer, message_id) do nothing
+          returning id
+        `);
+        if (claimed.length === 0) return { duplicate: true } as const;
+
+        const processed = await this.processor.process(job, context);
+        await database.execute(sql`
+          update app.inbox_messages
+          set processed_at = now(), result = ${JSON.stringify(processed)}::jsonb
+          where consumer = ${queue} and message_id = ${job.id}
+        `);
+        return { duplicate: false, processed } as const;
+      });
+
+      if (!result.duplicate && result.processed.status === "continued") {
+        const continued = {
+          ...job,
+          id: crypto.randomUUID(),
+          cursor: result.processed.cursor,
+          attempt: 0,
+          enqueued_at: new Date().toISOString()
+        } satisfies JobEnvelope;
+        await this.client.database.execute(
+          sql`select app.queue_send(${queue}, ${JSON.stringify(continued)}::jsonb)`
+        );
+      }
+      await this.delete(queue, record.msg_id);
+      return "completed";
+    } catch (error) {
+      logger.error(
+        {
+          requestId: context.requestId,
+          traceId: context.traceId,
+          tenantId: context.tenantId,
+          operation: job.job_type,
+          queue,
+          attempt: record.read_ct
+        },
+        "Job processing failed"
+      );
+      if (record.read_ct >= 5) {
+        await this.deadLetter(queue, record, "GM-JOB-DLQ", this.safeError(error));
+        return "deadLettered";
+      }
+      return "failed";
+    }
+  }
+
+  private async deadLetter(
+    queue: string,
+    record: QueueRecord,
+    code: string,
+    error: unknown
+  ): Promise<void> {
+    const untrusted = record.message as Partial<JobEnvelope>;
+    const tenantId = typeof untrusted.tenant_id === "string" ? untrusted.tenant_id : null;
+    await this.client.database.execute(sql`
+      select app.deadletter_job(
+        ${queue}, ${record.msg_id}, ${tenantId}::uuid, ${untrusted.job_type ?? "invalid"},
+        ${JSON.stringify(record.message)}::jsonb, ${JSON.stringify({ code, error })}::jsonb,
+        ${record.read_ct}
+      )
+    `);
+  }
+
+  private async delete(queue: string, messageId: number): Promise<void> {
+    await this.client.database.execute(sql`select app.queue_delete(${queue}, ${messageId})`);
+  }
+
+  private systemContext(job: JobEnvelope): TenantContext {
+    return {
+      tenantId: job.tenant_id,
+      userId: "00000000-0000-0000-0000-000000000000",
+      authUserId: "00000000-0000-0000-0000-000000000000",
+      organizationId: "00000000-0000-0000-0000-000000000000",
+      requestId: job.id,
+      traceId: job.trace_id,
+      permissions: new Set(),
+      systemActor: true
+    };
+  }
+
+  private safeError(error: unknown): Readonly<Record<string, string>> {
+    return error instanceof Error
+      ? { name: error.name, message: error.message }
+      : { name: "UnknownError", message: "Unknown job failure" };
+  }
+}
