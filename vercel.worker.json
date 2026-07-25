@@ -15,18 +15,18 @@
       "use": "@vercel/node"
     }
   ],
-  "rewrites": [
+  "routes": [
     {
       "source": "/api/pump",
-      "destination": "/api/pump"
+      "dest": "/api/pump.ts"
     },
     {
       "source": "/api/reconcile",
-      "destination": "/api/reconcile"
+      "dest": "/api/reconcile.ts"
     },
     {
       "source": "/api/health",
-      "destination": "/api/worker-health"
+      "dest": "/api/worker-health.ts"
     }
   ],
   "crons": [
