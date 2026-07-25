@@ -1,32 +1,32 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "regions": ["gru1"],
-  "functions": {
-    "apps/worker/api/pump.ts": {
-      "maxDuration": 800,
-      "memory": 2048
+  "builds": [
+    {
+      "src": "api/pump.ts",
+      "use": "@vercel/node"
     },
-    "apps/worker/api/reconcile.ts": {
-      "maxDuration": 300,
-      "memory": 1024
+    {
+      "src": "api/reconcile.ts",
+      "use": "@vercel/node"
     },
-    "apps/worker/api/health.ts": {
-      "maxDuration": 30,
-      "memory": 512
+    {
+      "src": "api/worker-health.ts",
+      "use": "@vercel/node"
     }
-  },
+  ],
   "rewrites": [
     {
       "source": "/api/pump",
-      "destination": "/apps/worker/api/pump"
+      "destination": "/api/pump"
     },
     {
       "source": "/api/reconcile",
-      "destination": "/apps/worker/api/reconcile"
+      "destination": "/api/reconcile"
     },
     {
       "source": "/api/health",
-      "destination": "/apps/worker/api/health"
+      "destination": "/api/worker-health"
     }
   ],
   "crons": [
