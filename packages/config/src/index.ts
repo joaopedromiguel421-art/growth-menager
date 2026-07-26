@@ -19,6 +19,7 @@ const configSchema = z
     DATABASE_URL: z.string().startsWith("postgres"),
     RESEND_API_KEY: z.string().min(1),
     RESEND_WEBHOOK_SECRET: z.string().min(1),
+    RESEND_FROM_EMAIL: z.email().default("convites@growthmanager.com.br"),
     INTERNAL_WORKER_SECRET: z.string().min(32),
     CRON_SECRET: z.string().min(32),
     GOOGLE_CLIENT_ID: z.string().min(1).default("not-configured"),

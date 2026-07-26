@@ -55,12 +55,6 @@ const modules: Readonly<
     description: "Consumo por tenant, provedor e operação antes de afetar a margem.",
     blockedBy: "a captura de eventos de uso"
   },
-  "settings/team": {
-    eyebrow: "Acesso",
-    title: "Equipe e permissões",
-    description: "Convide pessoas e atribua apenas o papel necessário.",
-    blockedBy: "o endpoint de convites"
-  },
   "settings/brand": {
     eyebrow: "Identidade",
     title: "Marca",
