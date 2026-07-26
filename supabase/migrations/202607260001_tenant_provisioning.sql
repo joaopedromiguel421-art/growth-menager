@@ -249,7 +249,8 @@ begin
         nullif(btrim(coalesce(p_industry, '')), ''),
         coalesce(nullif(btrim(coalesce(p_country_code, '')), ''), 'BR'),
         coalesce(nullif(btrim(coalesce(p_timezone, '')), ''), 'America/Sao_Paulo'),
-        coalesce(nullif(btrim(coalesce(p_locale, '')), ''), 'pt-BR')
+        coalesce(nullif(btrim(coalesce(p_locale, '')), ''), 'pt-BR'),
+        0
       )
       returning * into v_tenant;
       exit;
