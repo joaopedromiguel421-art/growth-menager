@@ -16,6 +16,7 @@ export const roleSchema = z.enum([
 
 export const permissionSchema = z.enum([
   "tenant.read",
+  "tenant.create",
   "tenant.update",
   "members.read",
   "members.manage",
