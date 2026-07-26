@@ -7,14 +7,14 @@ do RF.
 | RF     | Capacidade                   | Implementação/evidência atual                          | Gate |
 | ------ | ---------------------------- | ------------------------------------------------------ | ---- |
 | RF-001 | Autenticação compartilhada   | Supabase Auth, JWKS, cookies BFF, renovação e `/v1/me` | G1   |
-| RF-002 | Tenant e onboarding          | tabelas, RLS e tenant ativo resolvido pela sessão      | G1   |
-| RF-003 | Usuários, convites e papéis  | memberships, RBAC e políticas RLS                      | G1   |
+| RF-002 | Tenant e onboarding          | `POST /v1/tenants`, tela de clientes e localidade inicial | G1   |
+| RF-003 | Usuários, convites e papéis  | convite com token hash, tela de equipe e aceite        | G1   |
 | RF-004 | Autorizar integrações        | contrato `ProviderAdapter` e Vault modelado            | G2   |
 | RF-005 | Selecionar propriedades      | entidades de connection/property                       | G2   |
 | RF-006 | Saúde da integração          | contrato de health e tela de conexões                  | G2   |
 | RF-007 | Sync e normalização          | job paginado, cursor, inbox e fake determinístico      | G2   |
-| RF-008 | Central de comando           | endpoint e dashboard ligado a dados reais              | G2   |
-| RF-009 | Decidir recomendação         | endpoint, RBAC, versão e outbox                        | G3   |
+| RF-008 | Central de comando           | dashboard alimentado por recomendações geradas por regra | G2   |
+| RF-009 | Decidir recomendação         | endpoint, RBAC, versão, outbox e evidência rastreável  | G3   |
 | RF-010 | Avaliações                   | modelo, RLS e rota/tela reservada                      | G3   |
 | RF-011 | Sugestão de resposta         | jobs IA e evidência modelados                          | G3   |
 | RF-012 | Aprovação                    | endpoint AAL2, versão protegida e outbox               | G3   |
@@ -22,7 +22,7 @@ do RF.
 | RF-014 | Conteúdo e versões           | entidades, RLS, assets e tela de módulo                | G3   |
 | RF-015 | Aprovar conteúdo             | approval versionado compartilhado                      | G3   |
 | RF-016 | Agendar/publicar             | cron, fila exclusiva, advisory/estado modelado         | G3   |
-| RF-017 | Oportunidades Search Console | adapter e tela de oportunidades                        | G2   |
+| RF-017 | Oportunidades Search Console | coleta por consulta/página e regras de CTR e queda     | G2   |
 | RF-018 | DataForSEO e IA              | adapters, custo e evidência modelados                  | G2   |
 | RF-019 | Tarefas                      | list/create/update na UI, RBAC, versão e outbox        | G3   |
 | RF-020 | Alertas                      | entidade, RLS e tela de módulo                         | G3   |

@@ -8,19 +8,35 @@ import {
   dashboardSchema,
   errorEnvelopeSchema,
   integrationPropertySchema,
+  invitationAcceptResultSchema,
+  invitationCreateResultSchema,
   recommendationSchema,
+  sessionTenantSchema,
   syncJobSchema,
   taskSchema,
+  teamMemberSchema,
+  teamOverviewSchema,
+  tenantSchema,
   type Approval,
   type AuthorizeResponse,
   type ConnectionSummary,
   type CurrentSession,
   type Dashboard,
   type IntegrationProperty,
+  type InvitationAcceptResult,
+  type InvitationCreate,
+  type InvitationCreateResult,
+  type MembershipUpdate,
   type Provider,
   type Recommendation,
+  type SessionTenant,
   type SyncJob,
-  type Task
+  type Task,
+  type TeamMember,
+  type TeamOverview,
+  type Tenant,
+  type TenantCreate,
+  type TenantUpdate
 } from "@growth-manager/contracts";
 import { requireAccessToken } from "./auth";
 
@@ -135,6 +151,81 @@ async function readBody<T>(response: Response, schema: z.ZodType<T>): Promise<Ap
 
 export function getCurrentSession(): Promise<ApiResult<CurrentSession>> {
   return request("/v1/me", currentSessionSchema);
+}
+
+// Session-scoped routes deliberately omit tenantId so no x-tenant-id header is
+// sent: a client being created does not exist yet, and the API would reject a
+// tenant the caller cannot reach.
+export function listTenants(): Promise<ApiResult<readonly SessionTenant[]>> {
+  return request("/v1/tenants", z.array(sessionTenantSchema));
+}
+
+export function createTenant(
+  idempotencyKey: string,
+  input: TenantCreate
+): Promise<ApiResult<Tenant>> {
+  return request("/v1/tenants", tenantSchema, {
+    method: "POST",
+    idempotencyKey,
+    body: input
+  });
+}
+
+export function updateTenant(
+  tenantId: string,
+  input: TenantUpdate
+): Promise<ApiResult<Tenant>> {
+  return request(`/v1/tenants/${tenantId}`, tenantSchema, {
+    method: "PATCH",
+    tenantId,
+    body: input
+  });
+}
+
+export function getTeam(tenantId: string): Promise<ApiResult<TeamOverview>> {
+  return request(`/v1/tenants/${tenantId}/team`, teamOverviewSchema, { tenantId });
+}
+
+export function createInvitation(
+  tenantId: string,
+  idempotencyKey: string,
+  input: InvitationCreate
+): Promise<ApiResult<InvitationCreateResult>> {
+  return request(`/v1/tenants/${tenantId}/invitations`, invitationCreateResultSchema, {
+    method: "POST",
+    tenantId,
+    idempotencyKey,
+    body: input
+  });
+}
+
+export function revokeInvitation(
+  tenantId: string,
+  invitationId: string
+): Promise<ApiResult<undefined>> {
+  return request(`/v1/tenants/${tenantId}/invitations/${invitationId}`, z.undefined(), {
+    method: "DELETE",
+    tenantId
+  });
+}
+
+export function updateMembership(
+  tenantId: string,
+  membershipId: string,
+  input: MembershipUpdate
+): Promise<ApiResult<TeamMember>> {
+  return request(`/v1/tenants/${tenantId}/memberships/${membershipId}`, teamMemberSchema, {
+    method: "PATCH",
+    tenantId,
+    body: input
+  });
+}
+
+export function acceptInvitation(token: string): Promise<ApiResult<InvitationAcceptResult>> {
+  return request("/v1/invitations/accept", invitationAcceptResultSchema, {
+    method: "POST",
+    body: { token }
+  });
 }
 
 export function getDashboard(tenantId: string): Promise<ApiResult<Dashboard>> {
