@@ -1,0 +1,13 @@
+# Build outputs and caches are produced during the deployment, so shipping them
+# only inflates the upload — a CLI deploy from the repo root otherwise pushes
+# node_modules and blows past the 100 MB per-file limit.
+node_modules
+.next
+.turbo
+dist
+coverage
+test-results
+playwright-report
+.env
+.env.*
+!.env.example
