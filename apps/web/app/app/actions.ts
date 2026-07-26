@@ -3,8 +3,16 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import type { Task } from "@growth-manager/contracts";
-import { createTask, decideRecommendation, updateTask } from "../../lib/api";
+import { providerSchema, type Provider, type Task } from "@growth-manager/contracts";
+import {
+  authorizeConnection,
+  createTask,
+  decideRecommendation,
+  disconnectConnection,
+  requestConnectionSync,
+  selectConnectionProperties,
+  updateTask
+} from "../../lib/api";
 import { signOut } from "../../lib/auth";
 import { ACTIVE_TENANT_COOKIE, loadWorkspace } from "../../lib/session";
 
@@ -111,6 +119,70 @@ export async function setTaskStatusAction(formData: FormData): Promise<void> {
   await updateTask(tenantId, taskId, crypto.randomUUID(), { version, status });
   revalidatePath("/app");
   revalidatePath("/app/tasks");
+}
+
+function readProvider(formData: FormData): Provider | null {
+  const parsed = providerSchema.safeParse(formData.get("provider"));
+  return parsed.success ? parsed.data : null;
+}
+
+/**
+ * Starting OAuth has to happen server side because only the server holds the
+ * access token, and the browser then follows the provider's consent URL.
+ */
+export async function connectProviderAction(formData: FormData): Promise<void> {
+  const tenantId = await activeTenantId();
+  const provider = readProvider(formData);
+  if (tenantId === null || provider === null) return;
+
+  const result = await authorizeConnection(tenantId, provider, "/app/connections");
+  if (!result.ok) {
+    redirect(`/app/connections?error=${encodeURIComponent(result.message)}`);
+  }
+  // The consent URL is external, which typed routes cannot describe.
+  redirect(result.data.authorization_url as Parameters<typeof redirect>[0]);
+}
+
+export async function disconnectProviderAction(formData: FormData): Promise<void> {
+  const tenantId = await activeTenantId();
+  const provider = readProvider(formData);
+  if (tenantId === null || provider === null) return;
+
+  const result = await disconnectConnection(tenantId, provider);
+  if (!result.ok) {
+    redirect(`/app/connections?error=${encodeURIComponent(result.message)}`);
+  }
+  revalidatePath("/app");
+  revalidatePath("/app/connections");
+}
+
+export async function syncProviderAction(formData: FormData): Promise<void> {
+  const tenantId = await activeTenantId();
+  const provider = readProvider(formData);
+  if (tenantId === null || provider === null) return;
+
+  const result = await requestConnectionSync(tenantId, provider, crypto.randomUUID());
+  if (!result.ok) {
+    redirect(`/app/connections?error=${encodeURIComponent(result.message)}`);
+  }
+  revalidatePath("/app/connections");
+}
+
+export async function selectPropertiesAction(formData: FormData): Promise<void> {
+  const tenantId = await activeTenantId();
+  const provider = readProvider(formData);
+  if (tenantId === null || provider === null) return;
+
+  const propertyIds = formData
+    .getAll("property_id")
+    .filter((value): value is string => typeof value === "string");
+
+  const result = await selectConnectionProperties(tenantId, provider, propertyIds);
+  if (!result.ok) {
+    redirect(`/app/connections?error=${encodeURIComponent(result.message)}`);
+  }
+  revalidatePath("/app");
+  revalidatePath("/app/connections");
 }
 
 export async function decideRecommendationAction(formData: FormData): Promise<void> {

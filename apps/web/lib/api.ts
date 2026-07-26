@@ -2,15 +2,24 @@ import "server-only";
 import { z } from "zod";
 import {
   approvalSchema,
+  authorizeResponseSchema,
+  connectionSummarySchema,
   currentSessionSchema,
   dashboardSchema,
   errorEnvelopeSchema,
+  integrationPropertySchema,
   recommendationSchema,
+  syncJobSchema,
   taskSchema,
   type Approval,
+  type AuthorizeResponse,
+  type ConnectionSummary,
   type CurrentSession,
   type Dashboard,
+  type IntegrationProperty,
+  type Provider,
   type Recommendation,
+  type SyncJob,
   type Task
 } from "@growth-manager/contracts";
 import { requireAccessToken } from "./auth";
@@ -25,7 +34,7 @@ export interface ApiFailure {
 export type ApiResult<T> = { readonly ok: true; readonly data: T } | ApiFailure;
 
 interface RequestOptions {
-  readonly method?: "GET" | "POST" | "PATCH";
+  readonly method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   readonly tenantId?: string;
   readonly body?: unknown;
   readonly idempotencyKey?: string;
@@ -99,6 +108,12 @@ async function request<T>(
   }
 
   if (!response.ok) return readFailure(response);
+  return readBody(response, schema);
+}
+
+async function readBody<T>(response: Response, schema: z.ZodType<T>): Promise<ApiResult<T>> {
+  // A 204 carries no body, so there is nothing to parse against the schema.
+  if (response.status === 204) return { ok: true, data: undefined as T };
 
   let payload: unknown;
   try {
@@ -173,6 +188,71 @@ export function updateTask(
     tenantId,
     idempotencyKey,
     body: input
+  });
+}
+
+export function listConnections(
+  tenantId: string
+): Promise<ApiResult<readonly ConnectionSummary[]>> {
+  return request(`/v1/tenants/${tenantId}/integrations`, z.array(connectionSummarySchema), {
+    tenantId
+  });
+}
+
+export function authorizeConnection(
+  tenantId: string,
+  provider: Provider,
+  redirectPath: string
+): Promise<ApiResult<AuthorizeResponse>> {
+  return request(
+    `/v1/tenants/${tenantId}/integrations/${provider}/authorize`,
+    authorizeResponseSchema,
+    { method: "POST", tenantId, body: { redirect_path: redirectPath } }
+  );
+}
+
+export function listConnectionProperties(
+  tenantId: string,
+  provider: Provider
+): Promise<ApiResult<readonly IntegrationProperty[]>> {
+  return request(
+    `/v1/tenants/${tenantId}/integrations/${provider}/properties`,
+    z.array(integrationPropertySchema),
+    { tenantId }
+  );
+}
+
+export function selectConnectionProperties(
+  tenantId: string,
+  provider: Provider,
+  propertyIds: readonly string[]
+): Promise<ApiResult<readonly IntegrationProperty[]>> {
+  return request(
+    `/v1/tenants/${tenantId}/integrations/${provider}/properties`,
+    z.array(integrationPropertySchema),
+    { method: "PUT", tenantId, body: { property_ids: propertyIds } }
+  );
+}
+
+export function disconnectConnection(
+  tenantId: string,
+  provider: Provider
+): Promise<ApiResult<undefined>> {
+  return request(`/v1/tenants/${tenantId}/integrations/${provider}`, z.undefined(), {
+    method: "DELETE",
+    tenantId
+  });
+}
+
+export function requestConnectionSync(
+  tenantId: string,
+  provider: Provider,
+  idempotencyKey: string
+): Promise<ApiResult<SyncJob>> {
+  return request(`/v1/tenants/${tenantId}/integrations/${provider}/syncs`, syncJobSchema, {
+    method: "POST",
+    tenantId,
+    idempotencyKey
   });
 }
 

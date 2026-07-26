@@ -76,3 +76,5 @@ export class FakeProviderAdapter implements ProviderAdapter {
 }
 
 export * from "./resend.js";
+export * from "./google/oauth.js";
+export * from "./google/api.js";

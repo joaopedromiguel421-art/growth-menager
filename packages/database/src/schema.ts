@@ -98,6 +98,234 @@ export const memberships = app.table(
   ]
 );
 
+// The geo and service_area columns hold PostGIS/JSON shapes no query path needs,
+// so they stay out of the model.
+export const locations = app.table(
+  "locations",
+  {
+    ...mutableColumns,
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    name: varchar("name", { length: 160 }).notNull(),
+    externalKey: varchar("external_key", { length: 255 }),
+    primaryLocation: boolean("primary_location").notNull().default(false),
+    status: varchar("status", { length: 20 }).notNull().default("active")
+  },
+  (table) => [index("locations_tenant_status_idx").on(table.tenantId, table.status)]
+);
+
+export const integrationConnections = app.table(
+  "integration_connections",
+  {
+    ...mutableColumns,
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    provider: varchar("provider", { length: 32 }).notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("disconnected"),
+    secretRef: varchar("secret_ref", { length: 512 }),
+    scopes: text("scopes").array().notNull().default([]),
+    authorizedBy: uuid("authorized_by").references(() => users.id),
+    authorizedAt: timestamp("authorized_at", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+    errorCode: varchar("error_code", { length: 80 }),
+    consentVersion: varchar("consent_version", { length: 32 }),
+    metadata: jsonb("metadata").notNull().default({})
+  },
+  (table) => [
+    uniqueIndex("integration_connections_tenant_provider_uq").on(table.tenantId, table.provider),
+    index("integration_connections_status_expires_idx").on(table.status, table.expiresAt)
+  ]
+);
+
+export const integrationProperties = app.table(
+  "integration_properties",
+  {
+    ...mutableColumns,
+    connectionId: uuid("connection_id")
+      .notNull()
+      .references(() => integrationConnections.id),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    kind: varchar("kind", { length: 40 }).notNull(),
+    externalId: varchar("external_id", { length: 255 }).notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    locationId: uuid("location_id").references(() => locations.id),
+    selected: boolean("selected").notNull().default(true),
+    metadata: jsonb("metadata").notNull().default({})
+  },
+  (table) => [
+    uniqueIndex("integration_properties_connection_kind_external_uq").on(
+      table.connectionId,
+      table.kind,
+      table.externalId
+    ),
+    index("integration_properties_tenant_kind_idx").on(table.tenantId, table.kind, table.selected)
+  ]
+);
+
+export const syncJobs = app.table(
+  "sync_jobs",
+  {
+    ...mutableColumns,
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    connectionId: uuid("connection_id").references(() => integrationConnections.id),
+    provider: varchar("provider", { length: 32 }).notNull(),
+    jobType: varchar("job_type", { length: 64 }).notNull(),
+    status: varchar("status", { length: 24 }).notNull(),
+    cursor: jsonb("cursor"),
+    idempotencyKey: varchar("idempotency_key", { length: 160 }).notNull(),
+    attempt: smallint("attempt").notNull().default(0),
+    requestedBy: uuid("requested_by").references(() => users.id),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    nextRetryAt: timestamp("next_retry_at", { withTimezone: true }),
+    recordsRead: integer("records_read").notNull().default(0),
+    recordsWritten: integer("records_written").notNull().default(0),
+    recordsRejected: integer("records_rejected").notNull().default(0),
+    error: jsonb("error")
+  },
+  (table) => [
+    uniqueIndex("sync_jobs_tenant_idempotency_uq").on(table.tenantId, table.idempotencyKey),
+    index("sync_jobs_status_retry_idx").on(table.status, table.nextRetryAt)
+  ]
+);
+
+export const rawImports = app.table(
+  "raw_imports",
+  {
+    ...mutableColumns,
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    provider: varchar("provider", { length: 32 }).notNull(),
+    resourceType: varchar("resource_type", { length: 64 }).notNull(),
+    resourceId: varchar("resource_id", { length: 255 }).notNull(),
+    capturedAt: timestamp("captured_at", { withTimezone: true }).notNull(),
+    objectKey: varchar("object_key", { length: 512 }).notNull(),
+    sha256: varchar("sha256", { length: 64 }).notNull(),
+    schemaVersion: varchar("schema_version", { length: 32 }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull()
+  },
+  (table) => [
+    uniqueIndex("raw_imports_object_key_uq").on(table.objectKey),
+    index("raw_imports_tenant_provider_captured_idx").on(
+      table.tenantId,
+      table.provider,
+      table.capturedAt
+    )
+  ]
+);
+
+export const metricSnapshots = app.table(
+  "metric_snapshots",
+  {
+    ...mutableColumns,
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    locationId: uuid("location_id").references(() => locations.id),
+    source: varchar("source", { length: 32 }).notNull(),
+    metric: varchar("metric", { length: 80 }).notNull(),
+    dimensionHash: varchar("dimension_hash", { length: 64 }).notNull(),
+    dimensions: jsonb("dimensions").notNull().default({}),
+    periodStart: date("period_start").notNull(),
+    periodEnd: date("period_end").notNull(),
+    value: numeric("value", { precision: 20, scale: 6 }).notNull(),
+    unit: varchar("unit", { length: 32 }).notNull(),
+    observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
+    quality: varchar("quality", { length: 20 }).notNull(),
+    rawImportId: uuid("raw_import_id").references(() => rawImports.id)
+  },
+  (table) => [
+    uniqueIndex("metric_snapshots_identity_uq").on(
+      table.tenantId,
+      table.source,
+      table.metric,
+      table.dimensionHash,
+      table.periodStart,
+      table.periodEnd
+    ),
+    index("metric_snapshots_tenant_metric_period_idx").on(
+      table.tenantId,
+      table.metric,
+      table.periodEnd
+    )
+  ]
+);
+
+export const alerts = app.table(
+  "alerts",
+  {
+    ...mutableColumns,
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    type: varchar("type", { length: 64 }).notNull(),
+    severity: varchar("severity", { length: 16 }).notNull(),
+    status: varchar("status", { length: 20 }).notNull().default("open"),
+    title: varchar("title", { length: 200 }).notNull(),
+    details: jsonb("details").notNull(),
+    dedupeKey: varchar("dedupe_key", { length: 160 }).notNull(),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
+    occurrences: integer("occurrences").notNull().default(1),
+    acknowledgedBy: uuid("acknowledged_by").references(() => users.id),
+    resolvedBy: uuid("resolved_by").references(() => users.id),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true })
+  },
+  (table) => [index("alerts_tenant_status_idx").on(table.tenantId, table.status)]
+);
+
+export const usageEvents = app.table(
+  "usage_events",
+  {
+    ...mutableColumns,
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    provider: varchar("provider", { length: 32 }).notNull(),
+    operation: varchar("operation", { length: 80 }).notNull(),
+    requestId: varchar("request_id", { length: 160 }).notNull(),
+    quantity: numeric("quantity", { precision: 20, scale: 6 }).notNull(),
+    unit: varchar("unit", { length: 32 }).notNull(),
+    cost: numeric("cost", { precision: 14, scale: 6 }).notNull().default("0"),
+    currency: varchar("currency", { length: 3 }).notNull().default("USD"),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    metadata: jsonb("metadata").notNull().default({})
+  },
+  (table) => [index("usage_events_tenant_occurred_idx").on(table.tenantId, table.occurredAt)]
+);
+
+export const budgets = app.table(
+  "budgets",
+  {
+    ...mutableColumns,
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    provider: varchar("provider", { length: 32 }).notNull(),
+    period: varchar("period", { length: 16 }).notNull().default("monthly"),
+    softLimit: numeric("soft_limit", { precision: 14, scale: 4 }).notNull(),
+    hardLimit: numeric("hard_limit", { precision: 14, scale: 4 }).notNull(),
+    currency: varchar("currency", { length: 3 }).notNull(),
+    essentialOverride: boolean("essential_override").notNull().default(false),
+    effectiveFrom: date("effective_from").notNull()
+  },
+  (table) => [
+    uniqueIndex("budgets_tenant_provider_effective_uq").on(
+      table.tenantId,
+      table.provider,
+      table.effectiveFrom
+    )
+  ]
+);
+
 export const recommendations = app.table(
   "recommendations",
   {

@@ -1,10 +1,13 @@
 import type { JobEnvelope } from "@growth-manager/contracts";
+import { parseConfig, type AppConfig } from "@growth-manager/config";
+import type { Database } from "@growth-manager/database";
 import {
   FakeProviderAdapter,
   type ProviderAdapter,
   type ProviderName
 } from "@growth-manager/integrations";
 import type { TenantContext } from "@growth-manager/domain";
+import { syncGoogleProvider, type SyncableProvider } from "./google-sync.js";
 
 export interface JobResult {
   readonly status: "completed" | "continued";
@@ -13,6 +16,7 @@ export interface JobResult {
 }
 
 const externalWriteJobs = new Set<JobEnvelope["job_type"]>(["publish_reply", "publish_content"]);
+const realSyncProviders = new Set<string>(["google_business", "search_console"]);
 
 export class JobProcessor {
   private readonly providers: ReadonlyMap<ProviderName, ProviderAdapter> = new Map(
@@ -28,9 +32,15 @@ export class JobProcessor {
     ).map((name) => [name, new FakeProviderAdapter(name)])
   );
 
-  public async process(job: JobEnvelope, context: TenantContext): Promise<JobResult> {
+  public constructor(private readonly config: AppConfig = parseConfig(process.env)) {}
+
+  public async process(
+    job: JobEnvelope,
+    context: TenantContext,
+    database: Database
+  ): Promise<JobResult> {
     if (job.job_type === "sync") {
-      return this.processSync(job, context);
+      return this.processSync(job, context, database);
     }
     if (externalWriteJobs.has(job.job_type)) {
       return this.processExternalWrite(job, context);
@@ -42,9 +52,30 @@ export class JobProcessor {
     });
   }
 
-  private async processSync(job: JobEnvelope, context: TenantContext): Promise<JobResult> {
-    const provider = this.provider(job.payload.provider);
-    const result = await provider.read({
+  private async processSync(
+    job: JobEnvelope,
+    context: TenantContext,
+    database: Database
+  ): Promise<JobResult> {
+    const provider = String(job.payload.provider);
+    if (this.config.FEATURE_REAL_PROVIDERS && realSyncProviders.has(provider)) {
+      const outcome = await syncGoogleProvider({
+        database,
+        context,
+        config: this.config,
+        provider: provider as SyncableProvider
+      });
+      return {
+        status: "completed",
+        cursor: null,
+        details: { rows: outcome.recordsRead, written: outcome.recordsWritten, provider }
+      };
+    }
+
+    // Providers without a real adapter still exercise the queue so the pipeline can
+    // be verified end to end before their credentials exist.
+    const adapter = this.provider(job.payload.provider);
+    const result = await adapter.read({
       tenantId: context.tenantId,
       requestId: context.requestId,
       idempotencyKey: job.idempotency_key,

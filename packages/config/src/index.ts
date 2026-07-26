@@ -21,6 +21,8 @@ const configSchema = z
     RESEND_WEBHOOK_SECRET: z.string().min(1),
     INTERNAL_WORKER_SECRET: z.string().min(32),
     CRON_SECRET: z.string().min(32),
+    GOOGLE_CLIENT_ID: z.string().min(1).default("not-configured"),
+    GOOGLE_CLIENT_SECRET: z.string().min(1).default("not-configured"),
     SENTRY_DSN: z.string().optional(),
     OTEL_EXPORTER_OTLP_ENDPOINT: z.string().optional(),
     FEATURE_PASSKEYS: booleanString,

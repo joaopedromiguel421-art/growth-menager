@@ -8,6 +8,8 @@ import { DomainExceptionFilter } from "./domain-exception.filter.js";
 import { HealthController } from "./health.controller.js";
 import { IdentityController } from "./identity.controller.js";
 import { IdentityService } from "./identity.service.js";
+import { IntegrationsController } from "./integrations.controller.js";
+import { IntegrationsService } from "./integrations.service.js";
 import { JwtAuthGuard } from "./jwt-auth.guard.js";
 import { WorkController } from "./work.controller.js";
 import { WorkService } from "./work.service.js";
@@ -19,6 +21,7 @@ import { WebhookService } from "./webhook.service.js";
     HealthController,
     IdentityController,
     DashboardController,
+    IntegrationsController,
     WorkController,
     WebhookController
   ],
@@ -26,6 +29,7 @@ import { WebhookService } from "./webhook.service.js";
     databaseProvider,
     AuthorizationService,
     IdentityService,
+    IntegrationsService,
     DashboardService,
     WorkService,
     WebhookService,

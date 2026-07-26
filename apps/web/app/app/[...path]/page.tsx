@@ -55,12 +55,6 @@ const modules: Readonly<
     description: "Consumo por tenant, provedor e operação antes de afetar a margem.",
     blockedBy: "a captura de eventos de uso"
   },
-  connections: {
-    eyebrow: "Fontes de dados",
-    title: "Conexões",
-    description: "Autorize propriedades, acompanhe escopos e recupere falhas.",
-    blockedBy: "o OAuth dos provedores externos"
-  },
   "settings/team": {
     eyebrow: "Acesso",
     title: "Equipe e permissões",

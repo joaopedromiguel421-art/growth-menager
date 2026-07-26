@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { jobEnvelopeSchema, type JobEnvelope } from "@growth-manager/contracts";
-import type { DatabaseClient } from "@growth-manager/database";
+import type { Database, DatabaseClient } from "@growth-manager/database";
 import type { TenantContext } from "@growth-manager/domain";
 import { logger } from "@growth-manager/observability";
 import { JobProcessor } from "./job-processor.js";
@@ -80,7 +80,9 @@ export class QueueWorker {
         `);
         if (claimed.length === 0) return { duplicate: true } as const;
 
-        const processed = await this.processor.process(job, context);
+        await this.markSyncJob(database, job, "running", null);
+        const processed = await this.processor.process(job, context, database);
+        await this.markSyncJob(database, job, "completed", processed.details);
         await database.execute(sql`
           update app.inbox_messages
           set processed_at = now(), result = ${JSON.stringify(processed)}::jsonb
@@ -121,6 +123,34 @@ export class QueueWorker {
       }
       return "failed";
     }
+  }
+
+  /**
+   * A manual sync is tracked by an app.sync_jobs row the API created, so the queue
+   * has to report progress back onto it for the connections screen to be truthful.
+   */
+  private async markSyncJob(
+    database: Database,
+    job: JobEnvelope,
+    status: "running" | "completed",
+    details: Readonly<Record<string, unknown>> | null
+  ): Promise<void> {
+    const syncJobId = job.payload.sync_job_id;
+    if (typeof syncJobId !== "string") return;
+
+    const read = Number(details?.rows ?? 0);
+    const written = Number(details?.written ?? 0);
+    await database.execute(sql`
+      update app.sync_jobs
+      set status = ${status},
+          started_at = coalesce(started_at, now()),
+          finished_at = case when ${status} = 'completed' then now() else finished_at end,
+          records_read = ${Number.isFinite(read) ? read : 0},
+          records_written = ${Number.isFinite(written) ? written : 0},
+          updated_at = now(),
+          version = version + 1
+      where id = ${syncJobId}::uuid and tenant_id = ${job.tenant_id}::uuid
+    `);
   }
 
   private async deadLetter(
