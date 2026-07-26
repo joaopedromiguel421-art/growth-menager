@@ -300,7 +300,8 @@ function toTask(item: typeof schema.tasks.$inferSelect): Task {
     status: item.status as Task["status"],
     priority: item.priority as Task["priority"],
     assignee_id: item.assigneeId,
-    due_at: item.dueAt?.toISOString() ?? null
+    due_at: item.dueAt?.toISOString() ?? null,
+    version: item.version
   };
 }
 

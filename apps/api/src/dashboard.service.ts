@@ -75,7 +75,8 @@ export class DashboardService {
             | "cancelled",
           priority: item.priority as "low" | "medium" | "high" | "urgent",
           assignee_id: item.assigneeId,
-          due_at: item.dueAt?.toISOString() ?? null
+          due_at: item.dueAt?.toISOString() ?? null,
+          version: item.version
         })),
         approvals: approvals.map((item) => ({
           id: item.id,

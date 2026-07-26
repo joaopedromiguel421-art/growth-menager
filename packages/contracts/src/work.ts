@@ -30,7 +30,9 @@ export const taskSchema = z
     status: z.enum(["backlog", "todo", "in_progress", "blocked", "done", "cancelled"]),
     priority: z.enum(["low", "medium", "high", "urgent"]),
     assignee_id: uuidSchema.nullable(),
-    due_at: isoDateTimeSchema.nullable()
+    due_at: isoDateTimeSchema.nullable(),
+    // Callers need the current version to send an optimistic-concurrency update.
+    version: z.number().int().positive()
   })
   .strict();
 

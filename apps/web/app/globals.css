@@ -931,16 +931,71 @@ h2 {
   font-size: 0.58rem;
 }
 
-.demo-notice {
+.sr-only {
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+.task-list__row {
   align-items: center;
-  background: var(--blue-soft);
-  border-radius: 10px;
-  color: var(--blue);
-  display: flex;
-  font-size: 0.7rem;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr auto auto;
+  padding: 13px 0;
+}
+
+.task-list__row + .task-list__row {
+  border-top: 1px solid var(--line);
+}
+
+.task-form {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(4, 1fr);
+  align-items: end;
+}
+
+.task-form .form-error,
+.task-form button {
+  grid-column: 1 / -1;
+}
+
+.tenant-switcher__form {
+  display: grid;
+  gap: 6px;
+  grid-column: 1 / -1;
+}
+
+.diagnostic {
+  display: grid;
   gap: 10px;
-  margin-top: 22px;
-  padding: 10px 14px;
+  margin-bottom: 14px;
+}
+
+.diagnostic div {
+  display: flex;
+  gap: 8px;
+  font-size: 0.7rem;
+}
+
+.diagnostic dt {
+  color: var(--ink-soft);
+}
+
+.diagnostic dd {
+  font-weight: 700;
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .task-form {
+    grid-template-columns: 1fr;
+  }
 }
 
 .module-stats {

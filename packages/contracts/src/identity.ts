@@ -65,7 +65,42 @@ export const membershipSchema = z
   })
   .strict();
 
+export const sessionTenantSchema = z
+  .object({
+    id: tenantIdSchema,
+    organization_id: uuidSchema,
+    organization_name: z.string().min(1).max(160),
+    name: z.string().min(1).max(160),
+    slug: z.string().min(1).max(80),
+    status: z.enum(["onboarding", "active", "suspended", "closing", "closed"]),
+    timezone: z.string().min(1).max(64),
+    role: roleSchema,
+    permissions: z.array(permissionSchema)
+  })
+  .strict();
+
+export const currentUserSchema = z
+  .object({
+    id: uuidSchema,
+    auth_user_id: uuidSchema,
+    email: z.email(),
+    name: z.string().min(1).max(160),
+    locale: z.string().min(2).max(16),
+    aal: z.enum(["aal1", "aal2"])
+  })
+  .strict();
+
+export const currentSessionSchema = z
+  .object({
+    user: currentUserSchema,
+    tenants: z.array(sessionTenantSchema)
+  })
+  .strict();
+
 export type Role = z.infer<typeof roleSchema>;
 export type Permission = z.infer<typeof permissionSchema>;
 export type Session = z.infer<typeof sessionSchema>;
 export type Membership = z.infer<typeof membershipSchema>;
+export type SessionTenant = z.infer<typeof sessionTenantSchema>;
+export type CurrentUser = z.infer<typeof currentUserSchema>;
+export type CurrentSession = z.infer<typeof currentSessionSchema>;

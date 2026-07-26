@@ -6,6 +6,8 @@ import { DashboardService } from "./dashboard.service.js";
 import { databaseProvider } from "./database.provider.js";
 import { DomainExceptionFilter } from "./domain-exception.filter.js";
 import { HealthController } from "./health.controller.js";
+import { IdentityController } from "./identity.controller.js";
+import { IdentityService } from "./identity.service.js";
 import { JwtAuthGuard } from "./jwt-auth.guard.js";
 import { WorkController } from "./work.controller.js";
 import { WorkService } from "./work.service.js";
@@ -13,10 +15,17 @@ import { WebhookController } from "./webhook.controller.js";
 import { WebhookService } from "./webhook.service.js";
 
 @Module({
-  controllers: [HealthController, DashboardController, WorkController, WebhookController],
+  controllers: [
+    HealthController,
+    IdentityController,
+    DashboardController,
+    WorkController,
+    WebhookController
+  ],
   providers: [
     databaseProvider,
     AuthorizationService,
+    IdentityService,
     DashboardService,
     WorkService,
     WebhookService,

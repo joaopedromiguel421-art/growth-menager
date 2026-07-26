@@ -1,218 +1,315 @@
-import { Badge, Card } from "@growth-manager/ui";
+import { Badge, Card, EmptyState } from "@growth-manager/ui";
+import type { Dashboard, Recommendation, SessionTenant } from "@growth-manager/contracts";
 import { getDashboard } from "../../lib/api";
+import { loadWorkspace } from "../../lib/session";
+import { NoTenantState, WorkspaceError } from "../../components/workspace-error";
+import { decideRecommendationAction } from "./actions";
 
-const demoTenantId = process.env.DEMO_TENANT_ID ?? "01954d2e-3b80-7000-8000-000000000001";
+const riskTone = {
+  low: "neutral",
+  medium: "info",
+  high: "warning",
+  critical: "danger"
+} as const;
 
-// The fallback preview deliberately branches beside live dashboard data.
-// eslint-disable-next-line complexity
+const qualityLabel = {
+  complete: "dados completos",
+  partial: "dados parciais",
+  insufficient: "dados insuficientes"
+} as const;
+
+function formatToday(timezone: string): string {
+  return new Intl.DateTimeFormat("pt-BR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone: timezone
+  }).format(new Date());
+}
+
+function formatDate(value: string | null, timezone: string): string {
+  if (value === null) return "Sem prazo";
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "short",
+    timeZone: timezone
+  }).format(new Date(value));
+}
+
+function isOverdue(dueAt: string | null): boolean {
+  return dueAt !== null && new Date(dueAt).getTime() < Date.now();
+}
+
+function PriorityCard({
+  recommendation,
+  canDecide
+}: {
+  readonly recommendation: Recommendation;
+  readonly canDecide: boolean;
+}): React.ReactNode {
+  return (
+    <Card className="priority-card">
+      <div className="card-heading">
+        <div>
+          <p className="eyebrow">Prioridade #1</p>
+          <h2>{recommendation.title}</h2>
+        </div>
+        <span className="score">{recommendation.priority_score}</span>
+      </div>
+      <p className="priority-card__summary">{recommendation.description}</p>
+      <div className="evidence-row">
+        <Badge tone={riskTone[recommendation.risk]}>Risco {recommendation.risk}</Badge>
+        <Badge tone="neutral">{recommendation.category}</Badge>
+        <Badge tone="success">Confiança {Math.round(recommendation.confidence * 100)}%</Badge>
+      </div>
+      {recommendation.rationale.length > 0 ? (
+        <p className="muted">{recommendation.rationale}</p>
+      ) : null}
+      {canDecide ? (
+        <div className="card-actions">
+          <form action={decideRecommendationAction}>
+            <input name="recommendation_id" type="hidden" value={recommendation.id} />
+            <input name="decision" type="hidden" value="accepted" />
+            <button className="primary-button" type="submit">
+              Aceitar e criar tarefa
+            </button>
+          </form>
+          <form action={decideRecommendationAction}>
+            <input name="recommendation_id" type="hidden" value={recommendation.id} />
+            <input name="decision" type="hidden" value="dismissed" />
+            <button className="tertiary-button" type="submit">
+              Descartar
+            </button>
+          </form>
+        </div>
+      ) : null}
+    </Card>
+  );
+}
+
+function SignalStrip({
+  dashboard,
+  timezone
+}: {
+  readonly dashboard: Dashboard;
+  readonly timezone: string;
+}): React.ReactNode {
+  const highImpact = dashboard.recommendations.filter(
+    (item) => item.risk === "high" || item.risk === "critical"
+  ).length;
+  const overdueTasks = dashboard.tasks.filter((task) => isOverdue(task.due_at)).length;
+  const overdueApprovals = dashboard.approvals.filter((item) => isOverdue(item.due_at)).length;
+  const healthySources = dashboard.sources.filter((item) => item.status === "healthy").length;
+
+  return (
+    <section className="signal-strip" aria-label="Resumo operacional">
+      <div>
+        <span className="signal-icon signal-icon--violet">↗</span>
+        <p>
+          <strong>{dashboard.recommendations.length}</strong> prioridades
+        </p>
+        <small>{highImpact} de alto impacto</small>
+      </div>
+      <div>
+        <span className="signal-icon signal-icon--amber">◎</span>
+        <p>
+          <strong>{dashboard.approvals.length}</strong> aprovações
+        </p>
+        <small>{overdueApprovals} vencidas</small>
+      </div>
+      <div>
+        <span className="signal-icon signal-icon--blue">✓</span>
+        <p>
+          <strong>{dashboard.tasks.length}</strong> tarefas abertas
+        </p>
+        <small>{overdueTasks} atrasadas</small>
+      </div>
+      <div>
+        <span className="signal-icon signal-icon--green">◒</span>
+        <p>
+          <strong>{healthySources}</strong> fontes saudáveis
+        </p>
+        <small>
+          de {dashboard.sources.length} · {qualityLabel[dashboard.data_quality]}
+        </small>
+      </div>
+      <div>
+        <span className="signal-icon signal-icon--amber">!</span>
+        <p>
+          <strong>{dashboard.alerts_open}</strong> alertas
+        </p>
+        <small>apurado {formatDate(dashboard.generated_at, timezone)}</small>
+      </div>
+    </section>
+  );
+}
+
+function ApprovalsCard({
+  dashboard,
+  timezone
+}: {
+  readonly dashboard: Dashboard;
+  readonly timezone: string;
+}): React.ReactNode {
+  return (
+    <Card className="approvals-card">
+      <div className="card-heading">
+        <div>
+          <p className="eyebrow">Aguardando decisão</p>
+          <h2>Aprovações</h2>
+        </div>
+        <a href="/app/approvals">Ver todas</a>
+      </div>
+      {dashboard.approvals.length === 0 ? (
+        <p className="muted">Nenhuma aprovação pendente.</p>
+      ) : (
+        dashboard.approvals.map((approval) => (
+          <div className="approval-item" key={approval.id}>
+            <span className="channel-icon">{approval.subject_type.slice(0, 1).toUpperCase()}</span>
+            <div>
+              <strong>{approval.subject_type}</strong>
+              <small>versão {approval.subject_version}</small>
+            </div>
+            <Badge tone={isOverdue(approval.due_at) ? "danger" : "neutral"}>
+              {formatDate(approval.due_at, timezone)}
+            </Badge>
+          </div>
+        ))
+      )}
+    </Card>
+  );
+}
+
+function TasksCard({
+  dashboard,
+  timezone
+}: {
+  readonly dashboard: Dashboard;
+  readonly timezone: string;
+}): React.ReactNode {
+  return (
+    <Card className="tasks-card">
+      <div className="card-heading">
+        <div>
+          <p className="eyebrow">Próximos passos</p>
+          <h2>Tarefas críticas</h2>
+        </div>
+        <a href="/app/tasks">Abrir quadro</a>
+      </div>
+      {dashboard.tasks.length === 0 ? (
+        <p className="muted">Nenhuma tarefa em aberto.</p>
+      ) : (
+        <div className="task-list">
+          {dashboard.tasks.map((task) => (
+            <div className="task-list__row" key={task.id}>
+              <span>
+                <strong>{task.title}</strong>
+                <small>{formatDate(task.due_at, timezone)}</small>
+              </span>
+              <Badge tone={isOverdue(task.due_at) ? "danger" : "neutral"}>{task.priority}</Badge>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function SourcesCard({ dashboard }: { readonly dashboard: Dashboard }): React.ReactNode {
+  return (
+    <Card className="sources-card">
+      <div className="card-heading">
+        <div>
+          <p className="eyebrow">Qualidade do sinal</p>
+          <h2>Saúde das fontes</h2>
+        </div>
+        <a href="/app/connections">Gerenciar</a>
+      </div>
+      {dashboard.sources.length === 0 ? (
+        <p className="muted">Nenhuma fonte de dados conectada a este cliente.</p>
+      ) : (
+        <div className="source-grid">
+          {dashboard.sources.map((source) => (
+            <div key={source.provider}>
+              <i className={source.status === "healthy" ? "source-ok" : "source-warn"} />
+              <span>{source.provider}</span>
+              <small>{source.freshness_label}</small>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function NoRecommendationCard(): React.ReactNode {
+  return (
+    <Card className="priority-card">
+      <div className="card-heading">
+        <div>
+          <p className="eyebrow">Prioridades</p>
+          <h2>Nenhuma recomendação aberta</h2>
+        </div>
+      </div>
+      <p className="muted">
+        As recomendações são geradas a partir das fontes conectadas. Nenhuma foi produzida para este
+        cliente até agora.
+      </p>
+    </Card>
+  );
+}
+
 export default async function DashboardPage(): Promise<React.ReactNode> {
-  const dashboard = await getDashboard(demoTenantId);
-  const recommendations = dashboard?.recommendations ?? [];
-  const tasks = dashboard?.tasks ?? [];
-  const approvals = dashboard?.approvals ?? [];
+  const result = await loadWorkspace();
+  if (!result.ok) return <WorkspaceError failure={result.failure} />;
+
+  const tenant: SessionTenant | null = result.workspace.activeTenant;
+  if (tenant === null) return <NoTenantState email={result.workspace.session.user.email} />;
+
+  const dashboardResult = await getDashboard(tenant.id);
+  if (!dashboardResult.ok) return <WorkspaceError failure={dashboardResult} />;
+
+  const dashboard = dashboardResult.data;
+  const topRecommendation = dashboard.recommendations[0];
+  const canDecide = tenant.permissions.includes("recommendations.decide");
+  const everythingEmpty =
+    dashboard.recommendations.length === 0 &&
+    dashboard.tasks.length === 0 &&
+    dashboard.approvals.length === 0 &&
+    dashboard.sources.length === 0;
 
   return (
     <main className="page">
       <div className="page-heading">
         <div>
-          <p className="eyebrow">Sábado, 25 de julho</p>
+          <p className="eyebrow">{formatToday(tenant.timezone)}</p>
           <h1>O que merece atenção agora</h1>
           <p>Prioridades ordenadas por impacto, urgência e confiança dos dados.</p>
         </div>
-        <button className="secondary-button">Atualizar dados</button>
       </div>
 
-      <section className="signal-strip" aria-label="Resumo operacional">
-        <div>
-          <span className="signal-icon signal-icon--violet">↗</span>
-          <p>
-            <strong>{recommendations.length || 3}</strong> prioridades
-          </p>
-          <small>1 de alto impacto</small>
-        </div>
-        <div>
-          <span className="signal-icon signal-icon--amber">◎</span>
-          <p>
-            <strong>{approvals.length || 2}</strong> aprovações
-          </p>
-          <small>1 vence hoje</small>
-        </div>
-        <div>
-          <span className="signal-icon signal-icon--blue">✓</span>
-          <p>
-            <strong>{tasks.length || 7}</strong> tarefas abertas
-          </p>
-          <small>2 atrasadas</small>
-        </div>
-        <div>
-          <span className="signal-icon signal-icon--green">◒</span>
-          <p>
-            <strong>82%</strong> cobertura
-          </p>
-          <small>4 de 5 fontes</small>
-        </div>
-      </section>
+      <SignalStrip dashboard={dashboard} timezone={tenant.timezone} />
+
+      {everythingEmpty ? (
+        <Card>
+          <EmptyState
+            title={`Nenhum sinal registrado para ${tenant.name}`}
+            description="Este cliente ainda não tem fontes conectadas nem trabalho em aberto. Conecte uma fonte de dados ou crie a primeira tarefa para começar."
+          />
+        </Card>
+      ) : null}
 
       <div className="dashboard-grid">
-        <Card className="priority-card">
-          <div className="card-heading">
-            <div>
-              <p className="eyebrow">Prioridade #1</p>
-              <h2>Recupere a queda nas buscas locais</h2>
-            </div>
-            <span className="score">87</span>
-          </div>
-          <p className="priority-card__summary">
-            As visualizações no Google caíram 18% nas últimas quatro semanas, enquanto três
-            concorrentes ganharam posições para termos de alta intenção.
-          </p>
-          <div className="evidence-row">
-            <Badge tone="danger">Impacto alto</Badge>
-            <Badge tone="warning">Urgência alta</Badge>
-            <Badge tone="success">Confiança 91%</Badge>
-          </div>
-          <div className="evidence">
-            <div>
-              <span>Google Business</span>
-              <strong>−18%</strong>
-              <small>visualizações</small>
-            </div>
-            <div>
-              <span>Search Console</span>
-              <strong>−11</strong>
-              <small>cliques locais</small>
-            </div>
-            <div>
-              <span>Concorrência</span>
-              <strong>+3</strong>
-              <small>novas posições</small>
-            </div>
-          </div>
-          <div className="card-actions">
-            <button className="primary-button">Transformar em tarefa</button>
-            <button className="tertiary-button">Ver evidências</button>
-            <button className="icon-button" aria-label="Mais opções">
-              •••
-            </button>
-          </div>
-        </Card>
+        {topRecommendation === undefined ? (
+          <NoRecommendationCard />
+        ) : (
+          <PriorityCard canDecide={canDecide} recommendation={topRecommendation} />
+        )}
 
-        <Card className="approvals-card">
-          <div className="card-heading">
-            <div>
-              <p className="eyebrow">Aguardando decisão</p>
-              <h2>Aprovações</h2>
-            </div>
-            <a href="/app/approvals">Ver todas</a>
-          </div>
-          <div className="approval-item">
-            <span className="channel-icon">G</span>
-            <div>
-              <strong>Resposta à avaliação de Marina</strong>
-              <small>5 estrelas · Google</small>
-            </div>
-            <Badge tone="warning">Hoje</Badge>
-          </div>
-          <div className="approval-item">
-            <span className="channel-icon channel-icon--instagram">◎</span>
-            <div>
-              <strong>Post “Cuidados no inverno”</strong>
-              <small>Instagram · versão 3</small>
-            </div>
-            <Badge tone="neutral">Amanhã</Badge>
-          </div>
-        </Card>
-
-        <Card className="tasks-card">
-          <div className="card-heading">
-            <div>
-              <p className="eyebrow">Próximos passos</p>
-              <h2>Tarefas críticas</h2>
-            </div>
-            <a href="/app/tasks">Abrir quadro</a>
-          </div>
-          {tasks.length === 0 ? (
-            <div className="task-list">
-              <label>
-                <input type="checkbox" />
-                <span>
-                  <strong>Atualizar fotos da unidade Centro</strong>
-                  <small>Vence hoje · Ana</small>
-                </span>
-                <Badge tone="danger">P0</Badge>
-              </label>
-              <label>
-                <input type="checkbox" />
-                <span>
-                  <strong>Revisar páginas com queda de clique</strong>
-                  <small>Vence amanhã · João</small>
-                </span>
-                <Badge tone="warning">P1</Badge>
-              </label>
-              <label>
-                <input type="checkbox" />
-                <span>
-                  <strong>Validar calendário de agosto</strong>
-                  <small>28 jul · Cliente</small>
-                </span>
-                <Badge tone="neutral">P2</Badge>
-              </label>
-            </div>
-          ) : (
-            <div className="task-list">
-              {tasks.map((task) => (
-                <label key={task.id}>
-                  <input type="checkbox" />
-                  <span>
-                    <strong>{task.title}</strong>
-                    <small>{task.due_at ?? "Sem prazo"}</small>
-                  </span>
-                  <Badge tone="neutral">{task.priority}</Badge>
-                </label>
-              ))}
-            </div>
-          )}
-        </Card>
-
-        <Card className="sources-card">
-          <div className="card-heading">
-            <div>
-              <p className="eyebrow">Qualidade do sinal</p>
-              <h2>Saúde das fontes</h2>
-            </div>
-            <a href="/app/connections">Gerenciar</a>
-          </div>
-          <div className="source-grid">
-            <div>
-              <i className="source-ok" />
-              <span>Google Business</span>
-              <small>há 12 min</small>
-            </div>
-            <div>
-              <i className="source-ok" />
-              <span>Search Console</span>
-              <small>há 2 h</small>
-            </div>
-            <div>
-              <i className="source-ok" />
-              <span>GA4</span>
-              <small>há 2 h</small>
-            </div>
-            <div>
-              <i className="source-warn" />
-              <span>Instagram</span>
-              <small>reconectar</small>
-            </div>
-          </div>
-        </Card>
+        <ApprovalsCard dashboard={dashboard} timezone={tenant.timezone} />
+        <TasksCard dashboard={dashboard} timezone={tenant.timezone} />
+        <SourcesCard dashboard={dashboard} />
       </div>
-
-      {dashboard === null ? (
-        <div className="demo-notice" role="status">
-          <strong>Modo de demonstração</strong>
-          <span>Conecte a API e defina DEMO_TENANT_ID para carregar dados reais.</span>
-        </div>
-      ) : null}
     </main>
   );
 }

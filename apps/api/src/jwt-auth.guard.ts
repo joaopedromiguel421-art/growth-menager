@@ -6,6 +6,7 @@ import { parseConfig } from "@growth-manager/config";
 import { AuthorizationService } from "./auth.service.js";
 import { IS_PUBLIC_KEY } from "./public.decorator.js";
 import type { AuthenticatedRequest } from "./request-context.js";
+import { IS_SESSION_SCOPED_KEY } from "./session.decorator.js";
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -28,34 +29,46 @@ export class JwtAuthGuard implements CanActivate {
       return true;
     }
 
+    const sessionScoped = this.reflector.getAllAndOverride<boolean>(IS_SESSION_SCOPED_KEY, [
+      executionContext.getHandler(),
+      executionContext.getClass()
+    ]);
+
     const request = executionContext.switchToHttp().getRequest<AuthenticatedRequest>();
     const token = this.bearerToken(request.headers.authorization);
-    const tenantId = this.tenantId(request);
+    const tenantId = sessionScoped ? undefined : this.tenantId(request);
     const requestId = this.header(request, "x-request-id") ?? crypto.randomUUID();
     const traceId = this.header(request, "traceparent") ?? requestId;
 
+    let subject: string;
     try {
       const verified = await jwtVerify(token, this.jwks, {
         issuer: this.config.SUPABASE_JWT_ISSUER,
         audience: "authenticated"
       });
-      const subject = verified.payload.sub;
-      if (subject === undefined) {
+      if (verified.payload.sub === undefined) {
         throw new UnauthorizedException();
       }
-
+      subject = verified.payload.sub;
       request.authSubject = subject;
       request.authAal = verified.payload.aal === "aal2" ? "aal2" : "aal1";
-      request.tenantContext = await this.authorization.resolveContext({
-        authUserId: subject,
-        tenantId,
-        requestId,
-        traceId
-      });
-      return true;
     } catch {
       throw new UnauthorizedException("Sessão inválida ou expirada.");
     }
+
+    if (tenantId === undefined) {
+      return true;
+    }
+
+    // Authorization failures must stay distinguishable from an invalid token, so
+    // resolveContext runs outside the catch that maps verification errors.
+    request.tenantContext = await this.authorization.resolveContext({
+      authUserId: subject,
+      tenantId,
+      requestId,
+      traceId
+    });
+    return true;
   }
 
   private bearerToken(header: string | string[] | undefined): string {
