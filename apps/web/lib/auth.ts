@@ -56,6 +56,38 @@ export async function signInWithPassword(email: string, password: string): Promi
   });
 }
 
+/**
+ * Public signup is disabled, so an invitee has no Supabase account to sign in
+ * with. The admin endpoint creates one on the strength of an unexpired,
+ * single-use invitation token that the caller has already verified, and marks
+ * the address confirmed because possession of the emailed link is the proof.
+ */
+export async function createInvitedAuthUser(email: string, password: string): Promise<void> {
+  const configuration = supabaseConfiguration();
+  const secret = process.env.SUPABASE_SECRET_KEY;
+  if (secret === undefined) {
+    throw new Error("Supabase admin access is not configured.");
+  }
+
+  const response = await fetch(`${configuration.url}/auth/v1/admin/users`, {
+    method: "POST",
+    headers: {
+      apikey: secret,
+      Authorization: `Bearer ${secret}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ email, password, email_confirm: true }),
+    cache: "no-store"
+  });
+
+  // A repeated submission finds the account already there; signing in afterwards
+  // still succeeds, so this is not an error worth surfacing.
+  if (response.status === 422 || response.status === 409) return;
+  if (!response.ok) {
+    throw new Error("Não foi possível criar seu acesso. Tente novamente.");
+  }
+}
+
 export async function signOut(): Promise<void> {
   const cookieStore = await cookies();
   const accessToken = cookieStore.get("gm-access")?.value;

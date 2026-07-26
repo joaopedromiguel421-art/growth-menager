@@ -3,14 +3,23 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { providerSchema, type Provider, type Task } from "@growth-manager/contracts";
+import {
+  invitableRoleSchema,
+  providerSchema,
+  type Provider,
+  type Task
+} from "@growth-manager/contracts";
 import {
   authorizeConnection,
+  createInvitation,
   createTask,
+  createTenant,
   decideRecommendation,
   disconnectConnection,
   requestConnectionSync,
+  revokeInvitation,
   selectConnectionProperties,
+  updateMembership,
   updateTask
 } from "../../lib/api";
 import { signOut } from "../../lib/auth";
@@ -26,6 +35,14 @@ async function activeTenantId(): Promise<string | null> {
   return result.workspace.activeTenant?.id ?? null;
 }
 
+const ACTIVE_TENANT_COOKIE_OPTIONS = {
+  httpOnly: true,
+  sameSite: "lax",
+  secure: process.env.NODE_ENV === "production",
+  path: "/",
+  maxAge: 180 * 24 * 60 * 60
+} as const;
+
 export async function switchTenantAction(formData: FormData): Promise<void> {
   const tenantId = formData.get("tenant_id");
   if (typeof tenantId !== "string" || tenantId.length === 0) return;
@@ -35,13 +52,7 @@ export async function switchTenantAction(formData: FormData): Promise<void> {
   // Never trust the submitted id: it must be one the session already grants.
   if (!result.workspace.session.tenants.some((tenant) => tenant.id === tenantId)) return;
 
-  (await cookies()).set(ACTIVE_TENANT_COOKIE, tenantId, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 180 * 24 * 60 * 60
-  });
+  (await cookies()).set(ACTIVE_TENANT_COOKIE, tenantId, ACTIVE_TENANT_COOKIE_OPTIONS);
   revalidatePath("/app");
 }
 
@@ -66,6 +77,102 @@ function readDueAt(formData: FormData): string | null {
   const value = text(formData, "due_at");
   if (value.length === 0) return null;
   return new Date(`${value}T12:00:00.000Z`).toISOString();
+}
+
+function optional(formData: FormData, field: string): string | null {
+  const value = text(formData, field);
+  return value.length === 0 ? null : value;
+}
+
+/**
+ * Creating a client is the entry point of the whole product, so it does more
+ * than insert a row: it makes the new client active and sends the operator to
+ * the connections screen. A client with no source connected has nothing to show,
+ * and leaving them on an empty dashboard is what made the app look broken.
+ */
+export async function createClientAction(
+  _previous: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const name = text(formData, "name");
+  if (name.length === 0) return { error: "Informe o nome do cliente." };
+
+  const organizationId = text(formData, "organization_id");
+  const isNewOrganization = organizationId === "" || organizationId === "new";
+
+  const result = await createTenant(crypto.randomUUID(), {
+    name,
+    legal_name: optional(formData, "legal_name"),
+    industry: optional(formData, "industry"),
+    country_code: "BR",
+    timezone: text(formData, "timezone") || "America/Sao_Paulo",
+    locale: "pt-BR",
+    organization_id: isNewOrganization ? null : organizationId,
+    ...(isNewOrganization
+      ? {
+          organization_name: text(formData, "organization_name"),
+          billing_email: text(formData, "billing_email")
+        }
+      : {})
+  });
+  if (!result.ok) return { error: result.message };
+
+  (await cookies()).set(ACTIVE_TENANT_COOKIE, result.data.id, ACTIVE_TENANT_COOKIE_OPTIONS);
+  revalidatePath("/app");
+  revalidatePath("/app/clients");
+  redirect("/app/connections?novo=1");
+}
+
+export async function inviteMemberAction(
+  _previous: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const tenantId = await activeTenantId();
+  if (tenantId === null) return { error: "Nenhum cliente ativo na sua sessão." };
+
+  const email = text(formData, "email");
+  if (email.length === 0) return { error: "Informe o e-mail de quem você quer convidar." };
+
+  const roleValue = formData.get("role");
+  const role = invitableRoleSchema.safeParse(roleValue);
+  if (!role.success) return { error: "Escolha um papel válido." };
+
+  const scope = formData.get("scope") === "organization" ? "organization" : "tenant";
+
+  const result = await createInvitation(tenantId, crypto.randomUUID(), {
+    email,
+    role: role.data,
+    scope,
+    expires_in_days: 7
+  });
+  if (!result.ok) return { error: result.message };
+
+  revalidatePath("/app/settings/team");
+  // A provider outage must not hide the invitation: surface the link to copy.
+  if (!result.data.email_sent) {
+    return {
+      error: `Convite criado, mas o e-mail não pôde ser enviado. Envie este link manualmente: ${result.data.accept_url}`
+    };
+  }
+  return { error: null };
+}
+
+export async function revokeInvitationAction(formData: FormData): Promise<void> {
+  const tenantId = await activeTenantId();
+  const invitationId = formData.get("invitation_id");
+  if (tenantId === null || typeof invitationId !== "string") return;
+
+  await revokeInvitation(tenantId, invitationId);
+  revalidatePath("/app/settings/team");
+}
+
+export async function revokeMemberAction(formData: FormData): Promise<void> {
+  const tenantId = await activeTenantId();
+  const membershipId = formData.get("membership_id");
+  if (tenantId === null || typeof membershipId !== "string") return;
+
+  await updateMembership(tenantId, membershipId, { status: "revoked" });
+  revalidatePath("/app/settings/team");
 }
 
 export async function createTaskAction(

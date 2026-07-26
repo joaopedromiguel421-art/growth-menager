@@ -20,6 +20,7 @@ import {
   type Provider
 } from "@growth-manager/contracts";
 import { DomainError, type TenantContext } from "@growth-manager/domain";
+import { requireIdempotencyKey } from "./idempotency.js";
 import { IntegrationsService } from "./integrations.service.js";
 import { Public } from "./public.decorator.js";
 import type { AuthenticatedRequest } from "./request-context.js";
@@ -121,7 +122,7 @@ export class IntegrationsController {
     return this.integrations.requestSync(
       this.context(request),
       this.provider(provider),
-      this.idempotencyKey(idempotencyKey)
+      requireIdempotencyKey(idempotencyKey)
     );
   }
 
@@ -148,10 +149,4 @@ export class IntegrationsController {
     return request.tenantContext;
   }
 
-  private idempotencyKey(value: string | undefined): string {
-    if (value === undefined || value.length < 8 || value.length > 160) {
-      throw new DomainError("GM-IDEMPOTENCY-REQUIRED", "Envie um Idempotency-Key válido.", false);
-    }
-    return value;
-  }
 }

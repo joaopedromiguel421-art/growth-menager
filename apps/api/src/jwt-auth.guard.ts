@@ -52,6 +52,9 @@ export class JwtAuthGuard implements CanActivate {
       subject = verified.payload.sub;
       request.authSubject = subject;
       request.authAal = verified.payload.aal === "aal2" ? "aal2" : "aal1";
+      if (typeof verified.payload.email === "string") {
+        request.authEmail = verified.payload.email;
+      }
     } catch {
       throw new UnauthorizedException("Sessão inválida ou expirada.");
     }

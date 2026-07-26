@@ -1,5 +1,7 @@
 import type { Permission, Role } from "@growth-manager/contracts";
 
+export * from "./scoring.js";
+
 export interface TenantContext {
   readonly tenantId: string;
   readonly userId: string;
@@ -26,6 +28,7 @@ export class DomainError extends Error {
 const permissionsByRole: Readonly<Record<Role, readonly Permission[]>> = {
   platform_admin: [
     "tenant.read",
+    "tenant.create",
     "tenant.update",
     "members.read",
     "members.manage",
@@ -53,6 +56,7 @@ const permissionsByRole: Readonly<Record<Role, readonly Permission[]>> = {
   ],
   agency_owner: [
     "tenant.read",
+    "tenant.create",
     "tenant.update",
     "members.read",
     "members.manage",
@@ -80,6 +84,7 @@ const permissionsByRole: Readonly<Record<Role, readonly Permission[]>> = {
   ],
   agency_manager: [
     "tenant.read",
+    "tenant.create",
     "tenant.update",
     "members.read",
     "members.manage",

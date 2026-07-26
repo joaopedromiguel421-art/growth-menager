@@ -31,6 +31,7 @@ const groups = [
   {
     label: "Configurar",
     items: [
+      ["◫", "Clientes", "/app/clients"],
       ["⌁", "Conexões", "/app/connections"],
       ["♙", "Equipe", "/app/settings/team"],
       ["◇", "Marca", "/app/settings/brand"]
@@ -42,11 +43,13 @@ function TenantSwitcher({ workspace }: { readonly workspace: Workspace }): React
   const { activeTenant, session } = workspace;
   if (activeTenant === null) {
     return (
+      // Without a visible way forward, an operator with no clients sees an app
+      // that appears broken rather than one waiting for its first client.
       <div className="tenant-switcher">
         <span className="tenant-switcher__avatar">—</span>
         <div>
           <strong>Nenhum cliente</strong>
-          <small>Sua conta não tem acesso a um tenant</small>
+          <Link href="/app/clients">Cadastrar o primeiro</Link>
         </div>
       </div>
     );

@@ -108,12 +108,25 @@ async function readMetrics(input: {
       end: input.end
     });
   }
-  return querySearchAnalytics({
-    accessToken: input.accessToken,
-    siteUrl: input.externalId,
-    start: input.start,
-    end: input.end
-  });
+  // Two passes: the site-level totals answer "is traffic moving", and the query
+  // and page breakdown is what a recommendation can actually name an action on.
+  const [totals, breakdown] = await Promise.all([
+    querySearchAnalytics({
+      accessToken: input.accessToken,
+      siteUrl: input.externalId,
+      start: input.start,
+      end: input.end
+    }),
+    querySearchAnalytics({
+      accessToken: input.accessToken,
+      siteUrl: input.externalId,
+      start: input.start,
+      end: input.end,
+      dimensions: ["date", "query", "page"],
+      rowLimit: 5000
+    })
+  ]);
+  return [...totals, ...breakdown];
 }
 
 /**

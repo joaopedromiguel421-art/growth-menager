@@ -9,4 +9,9 @@ export interface AuthenticatedRequest {
   tenantContext?: TenantContext;
   authSubject?: string;
   authAal?: "aal1" | "aal2";
+  /**
+   * Taken from the verified token, never from the body: accepting an invitation
+   * has to match the signed-in identity against the invited address.
+   */
+  authEmail?: string;
 }

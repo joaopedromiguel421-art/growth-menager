@@ -11,6 +11,10 @@ import { IdentityService } from "./identity.service.js";
 import { IntegrationsController } from "./integrations.controller.js";
 import { IntegrationsService } from "./integrations.service.js";
 import { JwtAuthGuard } from "./jwt-auth.guard.js";
+import { TeamController } from "./team.controller.js";
+import { TeamService } from "./team.service.js";
+import { TenantsController } from "./tenants.controller.js";
+import { TenantsService } from "./tenants.service.js";
 import { WorkController } from "./work.controller.js";
 import { WorkService } from "./work.service.js";
 import { WebhookController } from "./webhook.controller.js";
@@ -22,6 +26,10 @@ import { WebhookService } from "./webhook.service.js";
     IdentityController,
     DashboardController,
     IntegrationsController,
+    // Registered before WorkController so /v1/tenants resolves to the collection
+    // route rather than being shadowed by the /v1/tenants/:tenantId prefix.
+    TenantsController,
+    TeamController,
     WorkController,
     WebhookController
   ],
@@ -31,6 +39,8 @@ import { WebhookService } from "./webhook.service.js";
     IdentityService,
     IntegrationsService,
     DashboardService,
+    TenantsService,
+    TeamService,
     WorkService,
     WebhookService,
     { provide: APP_GUARD, useClass: JwtAuthGuard },

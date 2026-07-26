@@ -111,12 +111,25 @@ function seriesToMetrics(entry: DailyMetricSeries, location: string): readonly D
   return metrics;
 }
 
+/**
+ * Site-wide daily totals answer "is traffic up or down" but never "which query
+ * should we act on", so callers can request the query and page breakdown too.
+ * Search Console returns only the top rows for a breakdown — never present the
+ * result as a complete picture.
+ */
 export async function querySearchAnalytics(input: {
   readonly accessToken: string;
   readonly siteUrl: string;
   readonly start: Date;
   readonly end: Date;
+  readonly dimensions?: readonly string[];
+  readonly rowLimit?: number;
 }): Promise<DailyMetric[]> {
+  const dimensions_ = input.dimensions ?? ["date"];
+  if (dimensions_[0] !== "date") {
+    throw new Error("Search Console breakdowns must start with the date dimension.");
+  }
+
   const response = await fetch(
     `${SEARCH_CONSOLE}/sites/${encodeURIComponent(input.siteUrl)}/searchAnalytics/query`,
     {
@@ -128,8 +141,8 @@ export async function querySearchAnalytics(input: {
       body: JSON.stringify({
         startDate: isoDate(input.start),
         endDate: isoDate(input.end),
-        dimensions: ["date"],
-        rowLimit: 5000
+        dimensions: dimensions_,
+        rowLimit: input.rowLimit ?? 5000
       })
     }
   );
@@ -137,32 +150,55 @@ export async function querySearchAnalytics(input: {
     throw new Error(`Search Console query failed with status ${response.status.toString()}`);
   }
 
-  const body = (await response.json()) as {
-    readonly rows?: readonly {
-      readonly keys?: readonly string[];
-      readonly clicks?: number;
-      readonly impressions?: number;
-      readonly ctr?: number;
-      readonly position?: number;
-    }[];
-  };
+  const body = (await response.json()) as SearchAnalyticsResponse;
+  return (body.rows ?? []).flatMap((row) => searchRowToMetrics(row, input.siteUrl, dimensions_));
+}
 
-  const metrics: DailyMetric[] = [];
-  for (const row of body.rows ?? []) {
-    const date = row.keys?.[0];
-    if (date === undefined) continue;
-    const dimensions = { site: input.siteUrl };
-    metrics.push({ metric: "SEARCH_CLICKS", date, value: row.clicks ?? 0, dimensions });
-    metrics.push({
-      metric: "SEARCH_IMPRESSIONS",
-      date,
-      value: row.impressions ?? 0,
-      dimensions
-    });
-    metrics.push({ metric: "SEARCH_CTR", date, value: row.ctr ?? 0, dimensions });
-    metrics.push({ metric: "SEARCH_POSITION", date, value: row.position ?? 0, dimensions });
+interface SearchAnalyticsRow {
+  readonly keys?: readonly string[];
+  readonly clicks?: number;
+  readonly impressions?: number;
+  readonly ctr?: number;
+  readonly position?: number;
+}
+
+interface SearchAnalyticsResponse {
+  readonly rows?: readonly SearchAnalyticsRow[];
+}
+
+/**
+ * The keys after "date" line up positionally with the dimensions requested, so a
+ * breakdown lands in the same dimensions object the daily totals already use.
+ */
+function rowDimensions(
+  keys: readonly string[],
+  siteUrl: string,
+  requested: readonly string[]
+): Readonly<Record<string, string>> {
+  const dimensions: Record<string, string> = { site: siteUrl };
+  for (let index = 1; index < requested.length; index += 1) {
+    const name = requested[index];
+    const value = keys[index];
+    if (name !== undefined && value !== undefined) dimensions[name] = value;
   }
-  return metrics;
+  return dimensions;
+}
+
+function searchRowToMetrics(
+  row: SearchAnalyticsRow,
+  siteUrl: string,
+  requested: readonly string[]
+): readonly DailyMetric[] {
+  const date = row.keys?.[0];
+  if (date === undefined) return [];
+
+  const dimensions = rowDimensions(row.keys ?? [], siteUrl, requested);
+  return [
+    { metric: "SEARCH_CLICKS", date, value: row.clicks ?? 0, dimensions },
+    { metric: "SEARCH_IMPRESSIONS", date, value: row.impressions ?? 0, dimensions },
+    { metric: "SEARCH_CTR", date, value: row.ctr ?? 0, dimensions },
+    { metric: "SEARCH_POSITION", date, value: row.position ?? 0, dimensions }
+  ];
 }
 
 interface GoogleDate {

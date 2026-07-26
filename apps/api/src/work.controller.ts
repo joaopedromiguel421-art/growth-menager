@@ -7,6 +7,7 @@ import {
   taskUpdateSchema
 } from "@growth-manager/contracts";
 import { DomainError, type TenantContext } from "@growth-manager/domain";
+import { requireIdempotencyKey } from "./idempotency.js";
 import type { AuthenticatedRequest } from "./request-context.js";
 import { WorkService } from "./work.service.js";
 
@@ -31,7 +32,7 @@ export class WorkController {
     return this.work.decideRecommendation(
       this.context(request),
       recommendationId,
-      this.idempotencyKey(idempotencyKey),
+      requireIdempotencyKey(idempotencyKey),
       recommendationDecisionSchema.parse(body)
     );
   }
@@ -49,7 +50,7 @@ export class WorkController {
   ): Promise<unknown> {
     return this.work.createTask(
       this.context(request),
-      this.idempotencyKey(idempotencyKey),
+      requireIdempotencyKey(idempotencyKey),
       taskCreateSchema.parse(body)
     );
   }
@@ -64,7 +65,7 @@ export class WorkController {
     return this.work.updateTask(
       this.context(request),
       taskId,
-      this.idempotencyKey(idempotencyKey),
+      requireIdempotencyKey(idempotencyKey),
       taskUpdateSchema.parse(body)
     );
   }
@@ -87,7 +88,7 @@ export class WorkController {
     return this.work.decideApproval(
       this.context(request),
       approvalId,
-      this.idempotencyKey(idempotencyKey),
+      requireIdempotencyKey(idempotencyKey),
       approvalDecisionSchema.parse(body)
     );
   }
@@ -99,10 +100,4 @@ export class WorkController {
     return request.tenantContext;
   }
 
-  private idempotencyKey(value: string | undefined): string {
-    if (value === undefined || value.length < 8 || value.length > 160) {
-      throw new DomainError("GM-IDEMPOTENCY-REQUIRED", "Envie um Idempotency-Key válido.", false);
-    }
-    return value;
-  }
 }
