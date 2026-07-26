@@ -69,11 +69,14 @@ export class QueueWorker {
     const context = this.systemContext(job);
     try {
       const result = await this.client.withTenant(context, async (database) => {
+        // gen_random_uuid() has to come from pg_catalog: gm_api holds no USAGE on the
+        // extensions schema, so qualifying it as extensions.gen_random_uuid() fails
+        // with permission denied and no job ever gets claimed.
         const claimed = await database.execute<{ id: string }>(sql`
           insert into app.inbox_messages (
             id, tenant_id, consumer, message_id, received_at
           ) values (
-            extensions.gen_random_uuid(), ${job.tenant_id}, ${queue}, ${job.id}, now()
+            gen_random_uuid(), ${job.tenant_id}, ${queue}, ${job.id}, now()
           )
           on conflict (consumer, message_id) do nothing
           returning id
