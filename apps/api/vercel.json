@@ -2,6 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "regions": ["gru1"],
   "outputDirectory": "public",
+  "buildCommand": "pnpm turbo run build --filter=@growth-manager/api",
   "functions": {
     "api/index.ts": {
       "maxDuration": 300,
