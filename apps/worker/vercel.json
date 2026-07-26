@@ -5,7 +5,7 @@
   "buildCommand": "pnpm turbo run build --filter=@growth-manager/worker",
   "functions": {
     "api/pump.ts": {
-      "maxDuration": 800,
+      "maxDuration": 300,
       "memory": 2048
     },
     "api/reconcile.ts": {
@@ -20,7 +20,7 @@
   "crons": [
     {
       "path": "/api/reconcile",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 8 * * *"
     }
   ]
 }
