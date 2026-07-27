@@ -468,8 +468,8 @@ create table app.seo_geogrid_points (
   tenant_id uuid not null references app.tenants(id),
   geogrid_run_id uuid not null,
   evidence_id uuid not null,
-  row smallint not null,
-  column smallint not null,
+  "row" smallint not null,
+  "column" smallint not null,
   latitude numeric(10,7) not null check (latitude between -90 and 90),
   longitude numeric(10,7) not null check (longitude between -180 and 180),
   position smallint check (position is null or position > 0),
@@ -477,7 +477,7 @@ create table app.seo_geogrid_points (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   version integer not null default 1,
-  unique (tenant_id, geogrid_run_id, row, column),
+  unique (tenant_id, geogrid_run_id, "row", "column"),
   foreign key (tenant_id, geogrid_run_id) references app.seo_geogrid_runs(tenant_id, id),
   foreign key (tenant_id, evidence_id) references app.evidence(tenant_id, id)
 );
