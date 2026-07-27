@@ -29,6 +29,22 @@ function supabaseConfiguration(): { url: string; key: string } {
   return { url, key };
 }
 
+async function applySession(session: z.infer<typeof authResponseSchema>): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.set("gm-access", session.access_token, {
+    ...cookieOptions,
+    maxAge: session.expires_in
+  });
+  cookieStore.set("gm-refresh", session.refresh_token, {
+    ...cookieOptions,
+    maxAge: 30 * 24 * 60 * 60
+  });
+}
+
+function publicAppUrl(): string {
+  return process.env.PUBLIC_APP_URL ?? "http://localhost:3000";
+}
+
 export async function signInWithPassword(email: string, password: string): Promise<void> {
   const configuration = supabaseConfiguration();
   const response = await fetch(`${configuration.url}/auth/v1/token?grant_type=password`, {
@@ -44,16 +60,129 @@ export async function signInWithPassword(email: string, password: string): Promi
     throw new Error("E-mail ou senha inválidos.");
   }
 
-  const session = authResponseSchema.parse(await response.json());
-  const cookieStore = await cookies();
-  cookieStore.set("gm-access", session.access_token, {
-    ...cookieOptions,
-    maxAge: session.expires_in
+  await applySession(authResponseSchema.parse(await response.json()));
+}
+
+/**
+ * Always resolves the same way whether or not the address has an account, so the
+ * response itself can never be used to enumerate registered e-mails (RF-035).
+ */
+export async function requestPasswordRecovery(email: string): Promise<void> {
+  const configuration = supabaseConfiguration();
+  await fetch(`${configuration.url}/auth/v1/recover`, {
+    method: "POST",
+    headers: {
+      apikey: configuration.key,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      email,
+      options: { redirect_to: `${publicAppUrl()}/recovery/confirm` }
+    }),
+    cache: "no-store"
+  }).catch(() => undefined);
+}
+
+const factorSchema = z.object({
+  id: z.string(),
+  factor_type: z.string(),
+  status: z.string()
+});
+
+export interface MfaStatus {
+  readonly factorId: string;
+  readonly verified: boolean;
+}
+
+/**
+ * Reads the caller's own TOTP factor, if any, straight from Supabase Auth. There
+ * is no local mirror of MFA enrollment: the access token already proves identity,
+ * and Supabase is the single source of truth for factor state.
+ */
+export async function getMfaStatus(accessToken: string): Promise<MfaStatus | null> {
+  const configuration = supabaseConfiguration();
+  const response = await fetch(`${configuration.url}/auth/v1/user`, {
+    headers: { apikey: configuration.key, Authorization: `Bearer ${accessToken}` },
+    cache: "no-store"
   });
-  cookieStore.set("gm-refresh", session.refresh_token, {
-    ...cookieOptions,
-    maxAge: 30 * 24 * 60 * 60
+  if (!response.ok) return null;
+
+  const parsed = z.object({ factors: z.array(factorSchema).optional() }).safeParse(
+    await response.json()
+  );
+  if (!parsed.success) return null;
+
+  const totp = parsed.data.factors?.find((factor) => factor.factor_type === "totp");
+  if (totp === undefined) return null;
+  return { factorId: totp.id, verified: totp.status === "verified" };
+}
+
+export interface EnrolledFactor {
+  readonly factorId: string;
+  readonly secret: string;
+  readonly uri: string;
+}
+
+export async function enrollTotpFactor(accessToken: string): Promise<EnrolledFactor> {
+  const configuration = supabaseConfiguration();
+  const response = await fetch(`${configuration.url}/auth/v1/factors`, {
+    method: "POST",
+    headers: {
+      apikey: configuration.key,
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ factor_type: "totp" }),
+    cache: "no-store"
   });
+  if (!response.ok) {
+    throw new Error("Não foi possível iniciar a configuração do autenticador.");
+  }
+
+  const parsed = z
+    .object({ id: z.string(), totp: z.object({ secret: z.string(), uri: z.string() }) })
+    .parse(await response.json());
+  return { factorId: parsed.id, secret: parsed.totp.secret, uri: parsed.totp.uri };
+}
+
+export async function challengeFactor(accessToken: string, factorId: string): Promise<string> {
+  const configuration = supabaseConfiguration();
+  const response = await fetch(`${configuration.url}/auth/v1/factors/${factorId}/challenge`, {
+    method: "POST",
+    headers: { apikey: configuration.key, Authorization: `Bearer ${accessToken}` },
+    cache: "no-store"
+  });
+  if (!response.ok) {
+    throw new Error("Não foi possível iniciar a confirmação do autenticador.");
+  }
+  return z.object({ id: z.string() }).parse(await response.json()).id;
+}
+
+/**
+ * A successful verify returns a brand-new Supabase session already at AAL2, which
+ * replaces the caller's cookies exactly like a fresh sign-in would.
+ */
+export async function verifyFactor(
+  accessToken: string,
+  factorId: string,
+  challengeId: string,
+  code: string
+): Promise<void> {
+  const configuration = supabaseConfiguration();
+  const response = await fetch(`${configuration.url}/auth/v1/factors/${factorId}/verify`, {
+    method: "POST",
+    headers: {
+      apikey: configuration.key,
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ challenge_id: challengeId, code }),
+    cache: "no-store"
+  });
+  if (!response.ok) {
+    throw new Error("Código inválido ou expirado.");
+  }
+  await applySession(authResponseSchema.parse(await response.json()));
 }
 
 /**

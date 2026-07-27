@@ -1,7 +1,9 @@
 import { Badge, Card, EmptyState } from "@growth-manager/ui";
+import type { Approval } from "@growth-manager/contracts";
 import { listApprovals } from "../../../lib/api";
 import { loadWorkspace } from "../../../lib/session";
 import { NoTenantState, WorkspaceError } from "../../../components/workspace-error";
+import { decideApprovalAction } from "../actions";
 
 const riskTone = {
   low: "neutral",
@@ -25,6 +27,29 @@ const subjectLabel = {
   report: "Relatório"
 } as const;
 
+function DecisionButtons({ approval }: { readonly approval: Approval }): React.ReactNode {
+  return (
+    <div className="approval-item__decide">
+      <form action={decideApprovalAction}>
+        <input name="approval_id" type="hidden" value={approval.id} />
+        <input name="subject_version" type="hidden" value={approval.subject_version} />
+        <input name="decision" type="hidden" value="approved" />
+        <button className="primary-button" type="submit">
+          Aprovar
+        </button>
+      </form>
+      <form action={decideApprovalAction}>
+        <input name="approval_id" type="hidden" value={approval.id} />
+        <input name="subject_version" type="hidden" value={approval.subject_version} />
+        <input name="decision" type="hidden" value="rejected" />
+        <button className="tertiary-button" type="submit">
+          Rejeitar
+        </button>
+      </form>
+    </div>
+  );
+}
+
 export default async function ApprovalsPage(): Promise<React.ReactNode> {
   const result = await loadWorkspace();
   if (!result.ok) return <WorkspaceError failure={result.failure} />;
@@ -37,6 +62,9 @@ export default async function ApprovalsPage(): Promise<React.ReactNode> {
 
   const approvals = approvalsResult.data;
   const pending = approvals.filter((approval) => approval.status === "pending");
+  const canDecide = tenant.permissions.includes("approvals.decide");
+  const steppedUp = result.workspace.session.user.aal === "aal2";
+  const returnTo = encodeURIComponent("/app/approvals");
 
   return (
     <main className="page">
@@ -51,6 +79,15 @@ export default async function ApprovalsPage(): Promise<React.ReactNode> {
           </p>
         </div>
       </div>
+
+      {canDecide && pending.length > 0 && !steppedUp ? (
+        <Card>
+          <p className="muted">
+            Decidir uma aprovação exige confirmação de identidade (MFA).{" "}
+            <a href={`/app/step-up?returnTo=${returnTo}`}>Confirmar identidade</a>
+          </p>
+        </Card>
+      ) : null}
 
       {approvals.length === 0 ? (
         <Card>
@@ -79,14 +116,17 @@ export default async function ApprovalsPage(): Promise<React.ReactNode> {
                       }).format(new Date(approval.due_at))}
                 </small>
               </div>
-              <Badge tone={riskTone[approval.risk]}>{approval.risk}</Badge>
-              <Badge tone="neutral">{statusLabel[approval.status]}</Badge>
+              <div className="approval-item__side">
+                <div className="approval-item__badges">
+                  <Badge tone={riskTone[approval.risk]}>{approval.risk}</Badge>
+                  <Badge tone="neutral">{statusLabel[approval.status]}</Badge>
+                </div>
+                {canDecide && steppedUp && approval.status === "pending" ? (
+                  <DecisionButtons approval={approval} />
+                ) : null}
+              </div>
             </div>
           ))}
-          <p className="muted">
-            Decidir uma aprovação exige confirmação de MFA (AAL2). O fluxo de decisão na interface
-            entra junto com o step-up de autenticação.
-          </p>
         </Card>
       )}
     </main>

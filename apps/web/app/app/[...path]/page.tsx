@@ -19,12 +19,6 @@ const modules: Readonly<
     }
   >
 > = {
-  reviews: {
-    eyebrow: "Reputação",
-    title: "Avaliações",
-    description: "Classifique, responda e acompanhe avaliações com segurança.",
-    blockedBy: "a conexão com o Google Business Profile"
-  },
   content: {
     eyebrow: "Planejamento editorial",
     title: "Conteúdo",

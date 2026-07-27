@@ -201,6 +201,112 @@ function searchRowToMetrics(
   ];
 }
 
+const BUSINESS_REVIEWS = "https://mybusiness.googleapis.com/v4";
+const MAX_REVIEW_PAGES = 5;
+
+const STAR_RATING: Readonly<Record<string, number>> = {
+  ONE: 1,
+  TWO: 2,
+  THREE: 3,
+  FOUR: 4,
+  FIVE: 5
+};
+
+export interface ReviewRecord {
+  /** Full resource name, e.g. accounts/x/locations/y/reviews/z. */
+  readonly externalId: string;
+  readonly authorName: string | null;
+  readonly rating: number;
+  readonly body: string | null;
+  readonly publishedAt: string;
+  readonly updatedAt: string | null;
+  readonly hasReply: boolean;
+}
+
+interface RawReview {
+  readonly name?: string;
+  readonly reviewer?: { readonly displayName?: string; readonly isAnonymous?: boolean };
+  readonly starRating?: string;
+  readonly comment?: string;
+  readonly createTime?: string;
+  readonly updateTime?: string;
+  readonly reviewReply?: { readonly comment?: string };
+}
+
+interface ReviewsListResponse {
+  readonly reviews?: readonly RawReview[];
+  readonly nextPageToken?: string;
+}
+
+/**
+ * The legacy v4 Business Profile Reviews endpoints require separate Google
+ * allow-listing from the Performance/Information APIs already used elsewhere in
+ * this adapter — this call is correct but may need that approval before it
+ * returns real data in production, independent of anything in this codebase.
+ */
+function reviewAuthorName(review: RawReview): string | null {
+  if (review.reviewer?.isAnonymous === true) return null;
+  return review.reviewer?.displayName ?? null;
+}
+
+function toReviewRecord(review: RawReview): ReviewRecord | null {
+  if (review.name === undefined || review.createTime === undefined) return null;
+  return {
+    externalId: review.name,
+    authorName: reviewAuthorName(review),
+    rating: STAR_RATING[review.starRating ?? ""] ?? 0,
+    body: review.comment ?? null,
+    publishedAt: review.createTime,
+    updatedAt: review.updateTime ?? null,
+    hasReply: review.reviewReply !== undefined
+  };
+}
+
+export async function fetchReviews(input: {
+  readonly accessToken: string;
+  /** accounts/x/locations/y, as stored on the selected integration property. */
+  readonly locationExternalId: string;
+}): Promise<ReviewRecord[]> {
+  const records: ReviewRecord[] = [];
+  let pageToken: string | undefined;
+  let page = 0;
+
+  do {
+    const url = new URL(`${BUSINESS_REVIEWS}/${input.locationExternalId}/reviews`);
+    url.searchParams.set("pageSize", "50");
+    if (pageToken !== undefined) url.searchParams.set("pageToken", pageToken);
+
+    const body = await getJson<ReviewsListResponse>(url.toString(), input.accessToken);
+    for (const review of body.reviews ?? []) {
+      const record = toReviewRecord(review);
+      if (record !== null) records.push(record);
+    }
+    pageToken = body.nextPageToken;
+    page += 1;
+  } while (pageToken !== undefined && page < MAX_REVIEW_PAGES);
+
+  return records;
+}
+
+export async function replyToReview(input: {
+  readonly accessToken: string;
+  /** Full resource name of the review, as stored on app.reviews.external_id. */
+  readonly reviewExternalId: string;
+  readonly comment: string;
+}): Promise<void> {
+  const response = await fetch(`${BUSINESS_REVIEWS}/${input.reviewExternalId}/reply`, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${input.accessToken}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ comment: input.comment })
+  });
+  if (!response.ok) {
+    throw new Error(`Google review reply failed with status ${response.status.toString()}`);
+  }
+}
+
 interface GoogleDate {
   readonly year?: number;
   readonly month?: number;

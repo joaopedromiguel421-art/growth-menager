@@ -11,6 +11,9 @@ import {
   invitationAcceptResultSchema,
   invitationCreateResultSchema,
   recommendationSchema,
+  reviewDetailSchema,
+  reviewReplySchema,
+  reviewSchema,
   sessionTenantSchema,
   syncJobSchema,
   taskSchema,
@@ -29,6 +32,9 @@ import {
   type MembershipUpdate,
   type Provider,
   type Recommendation,
+  type Review,
+  type ReviewDetail,
+  type ReviewReply,
   type SessionTenant,
   type SyncJob,
   type Task,
@@ -347,6 +353,24 @@ export function requestConnectionSync(
   });
 }
 
+export function decideApproval(
+  tenantId: string,
+  approvalId: string,
+  idempotencyKey: string,
+  input: {
+    readonly decision: "approved" | "rejected";
+    readonly subject_version: number;
+    readonly note?: string | null;
+  }
+): Promise<ApiResult<unknown>> {
+  return request(`/v1/tenants/${tenantId}/approvals/${approvalId}/decision`, z.unknown(), {
+    method: "POST",
+    tenantId,
+    idempotencyKey,
+    body: { ...input, note: input.note ?? null }
+  });
+}
+
 export function decideRecommendation(
   tenantId: string,
   recommendationId: string,
@@ -361,5 +385,55 @@ export function decideRecommendation(
     `/v1/tenants/${tenantId}/recommendations/${recommendationId}/decision`,
     z.unknown(),
     { method: "POST", tenantId, idempotencyKey, body: input }
+  );
+}
+
+export function listReviews(tenantId: string): Promise<ApiResult<readonly Review[]>> {
+  return request(`/v1/tenants/${tenantId}/reviews`, z.array(reviewSchema), { tenantId });
+}
+
+export function getReview(
+  tenantId: string,
+  reviewId: string
+): Promise<ApiResult<ReviewDetail>> {
+  return request(`/v1/tenants/${tenantId}/reviews/${reviewId}`, reviewDetailSchema, { tenantId });
+}
+
+export function createReviewReplyDraft(
+  tenantId: string,
+  reviewId: string,
+  idempotencyKey: string
+): Promise<ApiResult<ReviewReply>> {
+  return request(`/v1/tenants/${tenantId}/reviews/${reviewId}/replies`, reviewReplySchema, {
+    method: "POST",
+    tenantId,
+    idempotencyKey
+  });
+}
+
+export function updateReviewReplyDraft(
+  tenantId: string,
+  reviewId: string,
+  replyId: string,
+  idempotencyKey: string,
+  body: string
+): Promise<ApiResult<ReviewReply>> {
+  return request(
+    `/v1/tenants/${tenantId}/reviews/${reviewId}/replies/${replyId}`,
+    reviewReplySchema,
+    { method: "PATCH", tenantId, idempotencyKey, body: { body } }
+  );
+}
+
+export function submitReviewReplyForApproval(
+  tenantId: string,
+  reviewId: string,
+  replyId: string,
+  idempotencyKey: string
+): Promise<ApiResult<unknown>> {
+  return request(
+    `/v1/tenants/${tenantId}/reviews/${reviewId}/replies/${replyId}/submit`,
+    z.unknown(),
+    { method: "POST", tenantId, idempotencyKey }
   );
 }

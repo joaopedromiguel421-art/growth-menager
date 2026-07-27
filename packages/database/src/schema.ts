@@ -405,6 +405,56 @@ export const approvals = app.table(
   ]
 );
 
+export const reviews = app.table(
+  "reviews",
+  {
+    ...mutableColumns,
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    locationId: uuid("location_id").references(() => locations.id),
+    provider: varchar("provider", { length: 32 }).notNull(),
+    externalId: varchar("external_id", { length: 255 }).notNull(),
+    authorName: varchar("author_name", { length: 160 }),
+    rating: smallint("rating").notNull(),
+    body: text("body"),
+    publishedAt: timestamp("published_at", { withTimezone: true }).notNull(),
+    updatedExternalAt: timestamp("updated_external_at", { withTimezone: true }),
+    sentiment: varchar("sentiment", { length: 16 }),
+    sensitiveTheme: boolean("sensitive_theme").notNull().default(false),
+    replyStatus: varchar("reply_status", { length: 24 }).notNull().default("none")
+  },
+  (table) => [
+    uniqueIndex("reviews_provider_external_uq").on(table.provider, table.externalId),
+    index("reviews_tenant_published_idx").on(table.tenantId, table.publishedAt),
+    check("reviews_rating_ck", sql`${table.rating} between 1 and 5`)
+  ]
+);
+
+export const reviewReplies = app.table(
+  "review_replies",
+  {
+    ...mutableColumns,
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    reviewId: uuid("review_id")
+      .notNull()
+      .references(() => reviews.id),
+    body: text("body").notNull(),
+    status: varchar("status", { length: 24 }).notNull(),
+    createdBy: uuid("created_by").references(() => users.id),
+    approvedBy: uuid("approved_by").references(() => users.id),
+    externalReplyId: varchar("external_reply_id", { length: 255 }),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    failureCode: varchar("failure_code", { length: 80 })
+  },
+  (table) => [
+    uniqueIndex("review_replies_review_version_uq").on(table.reviewId, table.version),
+    index("review_replies_tenant_status_idx").on(table.tenantId, table.status)
+  ]
+);
+
 export const reports = app.table(
   "reports",
   {

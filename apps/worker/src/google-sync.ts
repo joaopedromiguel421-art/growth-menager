@@ -2,13 +2,15 @@ import { createHash } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import type { AppConfig } from "@growth-manager/config";
 import { schema, type Database } from "@growth-manager/database";
-import { newId, type TenantContext } from "@growth-manager/domain";
+import { classifyReview, newId, type TenantContext } from "@growth-manager/domain";
 import {
   fetchBusinessPerformance,
+  fetchReviews,
   querySearchAnalytics,
   refreshAccessToken,
   type DailyMetric,
-  type GoogleOAuthConfig
+  type GoogleOAuthConfig,
+  type ReviewRecord
 } from "@growth-manager/integrations";
 
 export type SyncableProvider = "google_business" | "search_console";
@@ -91,6 +93,146 @@ export async function syncGoogleProvider(input: {
     .where(eq(schema.integrationConnections.id, connection.id));
 
   return { recordsRead: read, recordsWritten: written };
+}
+
+export interface ReviewSyncOutcome {
+  readonly recordsRead: number;
+  readonly recordsWritten: number;
+  readonly escalated: number;
+}
+
+/**
+ * Reviews are synced separately from metrics: they land in app.reviews, not
+ * metric_snapshots, and a newly sensitive one has to raise a task, not a number.
+ * Only google_business carries reviews, so this is not folded into the generic
+ * syncGoogleProvider loop above.
+ */
+export async function syncGoogleReviews(input: {
+  readonly database: Database;
+  readonly context: TenantContext;
+  readonly config: AppConfig;
+}): Promise<ReviewSyncOutcome> {
+  const connection = await activeConnection(input.database, input.context, "google_business");
+  const properties = await selectedProperties(input.database, connection.id);
+  if (properties.length === 0) {
+    return { recordsRead: 0, recordsWritten: 0, escalated: 0 };
+  }
+
+  const accessToken = await accessTokenFor(input.database, connection.id, {
+    clientId: input.config.GOOGLE_CLIENT_ID,
+    clientSecret: input.config.GOOGLE_CLIENT_SECRET,
+    redirectUri: `${input.config.API_BASE_URL}/v1/integrations/google_business/callback`
+  });
+
+  let read = 0;
+  let written = 0;
+  let escalated = 0;
+
+  for (const property of properties) {
+    const reviews = await fetchReviews({
+      accessToken,
+      locationExternalId: property.externalId
+    });
+    read += reviews.length;
+
+    for (const review of reviews) {
+      const outcome = await upsertReview({
+        database: input.database,
+        context: input.context,
+        locationId: property.locationId,
+        review
+      });
+      written += outcome.written ? 1 : 0;
+      escalated += outcome.escalated ? 1 : 0;
+    }
+  }
+
+  return { recordsRead: read, recordsWritten: written, escalated };
+}
+
+async function upsertReview(input: {
+  readonly database: Database;
+  readonly context: TenantContext;
+  readonly locationId: string | null;
+  readonly review: ReviewRecord;
+}): Promise<{ readonly written: boolean; readonly escalated: boolean }> {
+  const classification = classifyReview({
+    rating: input.review.rating,
+    body: input.review.body
+  });
+
+  const existingRows = await input.database
+    .select({ id: schema.reviews.id })
+    .from(schema.reviews)
+    .where(
+      and(
+        eq(schema.reviews.externalId, input.review.externalId),
+        eq(schema.reviews.tenantId, input.context.tenantId)
+      )
+    )
+    .limit(1);
+  const existingReview = existingRows[0];
+  const updatedExternalAt =
+    input.review.updatedAt === null ? null : new Date(input.review.updatedAt);
+
+  if (existingReview !== undefined) {
+    await input.database
+      .update(schema.reviews)
+      .set({
+        authorName: input.review.authorName,
+        body: input.review.body,
+        sentiment: classification.sentiment,
+        sensitiveTheme: classification.sensitiveTheme,
+        updatedExternalAt,
+        updatedAt: new Date(),
+        version: sql`${schema.reviews.version} + 1`
+      })
+      .where(eq(schema.reviews.id, existingReview.id));
+    return { written: true, escalated: false };
+  }
+
+  // A newly seen sensitive review starts escalated so it never silently sits in
+  // the default 'none' state waiting on a reply that RN-008 forbids automating.
+  const replyStatus = classification.sensitiveTheme ? "escalated" : "none";
+  const inserted = await input.database
+    .insert(schema.reviews)
+    .values({
+      id: newId(),
+      tenantId: input.context.tenantId,
+      locationId: input.locationId,
+      provider: "google_business",
+      externalId: input.review.externalId,
+      authorName: input.review.authorName,
+      rating: input.review.rating,
+      body: input.review.body,
+      publishedAt: new Date(input.review.publishedAt),
+      updatedExternalAt,
+      sentiment: classification.sentiment,
+      sensitiveTheme: classification.sensitiveTheme,
+      replyStatus
+    })
+    .onConflictDoNothing({ target: [schema.reviews.provider, schema.reviews.externalId] })
+    .returning({ id: schema.reviews.id });
+  if (inserted[0] === undefined) {
+    return { written: false, escalated: false };
+  }
+
+  if (classification.sensitiveTheme) {
+    await input.database.insert(schema.tasks).values({
+      id: newId(),
+      tenantId: input.context.tenantId,
+      recommendationId: null,
+      title: "Responder avaliação com tema sensível",
+      description:
+        "Uma avaliação recebida contém um tema que exige atendimento humano direto, sem resposta automática (RN-008).",
+      status: "backlog",
+      priority: "urgent",
+      assigneeId: null,
+      dueAt: new Date(Date.now() + 4 * 60 * 60 * 1000),
+      source: "review"
+    });
+  }
+  return { written: true, escalated: classification.sensitiveTheme };
 }
 
 async function readMetrics(input: {
@@ -245,7 +387,7 @@ async function selectedProperties(
     );
 }
 
-async function activeConnection(
+export async function activeConnection(
   database: Database,
   context: TenantContext,
   provider: SyncableProvider
@@ -268,7 +410,7 @@ async function activeConnection(
   return connection;
 }
 
-async function accessTokenFor(
+export async function accessTokenFor(
   database: Database,
   connectionId: string,
   oauth: GoogleOAuthConfig

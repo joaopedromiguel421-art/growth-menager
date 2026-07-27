@@ -1,6 +1,7 @@
 import type { Permission, Role } from "@growth-manager/contracts";
 
 export * from "./scoring.js";
+export * from "./reviews.js";
 
 export interface TenantContext {
   readonly tenantId: string;

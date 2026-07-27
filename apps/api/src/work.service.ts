@@ -217,6 +217,11 @@ export class WorkService {
           false
         );
       }
+
+      if (approval.subjectType === "review_reply") {
+        await this.applyReviewReplyDecision(database, context, approval, decision, idempotencyKey);
+      }
+
       await this.outbox(database, context, idempotencyKey, "approval_decided", {
         approval_id: approvalId,
         decision: decision.decision,
@@ -224,6 +229,60 @@ export class WorkService {
       });
       return toApproval(approval);
     });
+  }
+
+  /**
+   * A review reply approval has a side effect beyond the approval row itself: it
+   * moves the reply out of awaiting_approval and, once approved, hands it to the
+   * worker for real publication. Rejection just leaves the reply decided — the
+   * author can start a new draft, which is a new version and a new approval.
+   */
+  private async applyReviewReplyDecision(
+    database: Database,
+    context: TenantContext,
+    approval: typeof schema.approvals.$inferSelect,
+    decision: ApprovalDecision,
+    idempotencyKey: string
+  ): Promise<void> {
+    const nextStatus = decision.decision === "approved" ? "approved" : "rejected";
+    const records = await database
+      .update(schema.reviewReplies)
+      .set({ status: nextStatus, approvedBy: context.userId, updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.reviewReplies.reviewId, approval.subjectId),
+          eq(schema.reviewReplies.version, approval.subjectVersion),
+          eq(schema.reviewReplies.tenantId, context.tenantId),
+          eq(schema.reviewReplies.status, "awaiting_approval")
+        )
+      )
+      .returning();
+    const reply = records[0];
+    if (reply === undefined) return;
+
+    await database
+      .update(schema.reviews)
+      .set({ replyStatus: nextStatus, updatedAt: new Date() })
+      .where(
+        and(eq(schema.reviews.id, approval.subjectId), eq(schema.reviews.tenantId, context.tenantId))
+      );
+
+    if (decision.decision !== "approved") return;
+
+    // A distinct key: outbox_events.idempotency_key is unique per row, so the
+    // approval_decided event emitted right after this cannot reuse the caller's key.
+    await this.outbox(
+      database,
+      context,
+      `${idempotencyKey}:review-reply-publish`,
+      "review_reply_publish_due",
+      {
+        review_id: approval.subjectId,
+        reply_id: reply.id,
+        reply_version: reply.version,
+        body: reply.body
+      }
+    );
   }
 
   private async insertTask(

@@ -10,13 +10,17 @@ export default async function handler(
 ): Promise<void> {
   const config = parseConfig(process.env);
   const body = JSON.stringify(request.body ?? {});
-  const valid = verifyWorkerSignature({
+  const signedByWorker = verifyWorkerSignature({
     body,
     timestamp: request.headers["x-worker-timestamp"] as string | undefined,
     signature: request.headers["x-worker-signature"] as string | undefined,
     secret: config.INTERNAL_WORKER_SECRET
   });
-  if (!valid) {
+  // Vercel Cron cannot produce a custom HMAC header, only the standard bearer
+  // token it signs every scheduled invocation with, so the scheduled trigger
+  // added in vercel.json authenticates the same way api/reconcile.ts already does.
+  const signedByCron = request.headers.authorization === `Bearer ${config.CRON_SECRET}`;
+  if (!signedByWorker && !signedByCron) {
     response.status(401).json({ error: "invalid_signature" });
     return;
   }

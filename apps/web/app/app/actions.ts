@@ -14,6 +14,7 @@ import {
   createInvitation,
   createTask,
   createTenant,
+  decideApproval,
   decideRecommendation,
   disconnectConnection,
   requestConnectionSync,
@@ -308,4 +309,25 @@ export async function decideRecommendationAction(formData: FormData): Promise<vo
   revalidatePath("/app");
   revalidatePath("/app/opportunities");
   revalidatePath("/app/tasks");
+}
+
+export async function decideApprovalAction(formData: FormData): Promise<void> {
+  const tenantId = await activeTenantId();
+  if (tenantId === null) return;
+
+  const approvalId = formData.get("approval_id");
+  const subjectVersionValue = formData.get("subject_version");
+  const decisionValue = formData.get("decision");
+  if (typeof approvalId !== "string" || typeof subjectVersionValue !== "string") return;
+  if (decisionValue !== "approved" && decisionValue !== "rejected") return;
+
+  const subjectVersion = Number.parseInt(subjectVersionValue, 10);
+  if (!Number.isInteger(subjectVersion) || subjectVersion < 1) return;
+
+  await decideApproval(tenantId, approvalId, crypto.randomUUID(), {
+    decision: decisionValue,
+    subject_version: subjectVersion
+  });
+  revalidatePath("/app/approvals");
+  revalidatePath("/app/reviews");
 }
