@@ -19,10 +19,6 @@
   },
   "crons": [
     {
-      "path": "/api/pump",
-      "schedule": "*/5 * * * *"
-    },
-    {
       "path": "/api/reconcile",
       "schedule": "0 8 * * *"
     }

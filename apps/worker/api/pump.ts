@@ -16,9 +16,11 @@ export default async function handler(
     signature: request.headers["x-worker-signature"] as string | undefined,
     secret: config.INTERNAL_WORKER_SECRET
   });
-  // Vercel Cron cannot produce a custom HMAC header, only the standard bearer
-  // token it signs every scheduled invocation with, so the scheduled trigger
-  // added in vercel.json authenticates the same way api/reconcile.ts already does.
+  // Hobby-plan Vercel Cron can't run this more often than once a day, so there is
+  // no crons entry for this route in vercel.json — /api/reconcile's daily cron
+  // covers unattended draining. This bearer path exists so an external scheduler
+  // (or a Pro-plan cron, if the account is upgraded later) can call this route
+  // more often the same simple way api/reconcile.ts already authenticates.
   const signedByCron = request.headers.authorization === `Bearer ${config.CRON_SECRET}`;
   if (!signedByWorker && !signedByCron) {
     response.status(401).json({ error: "invalid_signature" });
