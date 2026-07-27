@@ -13,6 +13,8 @@ import { IntegrationsService } from "./integrations.service.js";
 import { JwtAuthGuard } from "./jwt-auth.guard.js";
 import { ReviewsController } from "./reviews.controller.js";
 import { ReviewsService } from "./reviews.service.js";
+import { SeoController } from "./seo.controller.js";
+import { SeoService } from "./seo.service.js";
 import { TeamController } from "./team.controller.js";
 import { TeamService } from "./team.service.js";
 import { TenantsController } from "./tenants.controller.js";
@@ -34,6 +36,7 @@ import { WebhookService } from "./webhook.service.js";
     TeamController,
     WorkController,
     ReviewsController,
+    SeoController,
     WebhookController
   ],
   providers: [
@@ -46,6 +49,7 @@ import { WebhookService } from "./webhook.service.js";
     TeamService,
     WorkService,
     ReviewsService,
+    SeoService,
     WebhookService,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_FILTER, useClass: DomainExceptionFilter }

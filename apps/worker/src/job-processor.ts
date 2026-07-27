@@ -17,6 +17,7 @@ import {
   type SyncableProvider
 } from "./google-sync.js";
 import { generateRecommendations } from "./recommendation-engine.js";
+import { SeoAnalysisProcessor } from "./seo-analysis-processor.js";
 
 export interface JobResult {
   readonly status: "completed" | "continued";
@@ -28,6 +29,7 @@ const externalWriteJobs = new Set<JobEnvelope["job_type"]>(["publish_reply", "pu
 const realSyncProviders = new Set<string>(["google_business", "search_console"]);
 
 export class JobProcessor {
+  private readonly seo: SeoAnalysisProcessor;
   private readonly providers: ReadonlyMap<ProviderName, ProviderAdapter> = new Map(
     (
       [
@@ -41,13 +43,18 @@ export class JobProcessor {
     ).map((name) => [name, new FakeProviderAdapter(name)])
   );
 
-  public constructor(private readonly config: AppConfig = parseConfig(process.env)) {}
+  public constructor(private readonly config: AppConfig = parseConfig(process.env)) {
+    this.seo = new SeoAnalysisProcessor(config);
+  }
 
   public async process(
     job: JobEnvelope,
     context: TenantContext,
     database: Database
   ): Promise<JobResult> {
+    if (job.job_type.startsWith("seo_")) {
+      return this.seo.process(job, context, database);
+    }
     if (job.job_type === "sync") {
       return this.processSync(job, context, database);
     }

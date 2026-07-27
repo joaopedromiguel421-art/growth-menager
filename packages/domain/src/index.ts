@@ -2,6 +2,10 @@ import type { Permission, Role } from "@growth-manager/contracts";
 
 export * from "./scoring.js";
 export * from "./reviews.js";
+export * from "./seo.js";
+export * from "./errors.js";
+export * from "./costs.js";
+import { DomainError } from "./errors.js";
 
 export interface TenantContext {
   readonly tenantId: string;
@@ -14,18 +18,6 @@ export interface TenantContext {
   readonly systemActor: boolean;
 }
 
-export class DomainError extends Error {
-  public constructor(
-    public readonly code: `GM-${string}`,
-    message: string,
-    public readonly retryable: boolean,
-    options?: ErrorOptions
-  ) {
-    super(message, options);
-    this.name = "DomainError";
-  }
-}
-
 const permissionsByRole: Readonly<Record<Role, readonly Permission[]>> = {
   platform_admin: [
     "tenant.read",
@@ -36,6 +28,10 @@ const permissionsByRole: Readonly<Record<Role, readonly Permission[]>> = {
     "connections.read",
     "connections.manage",
     "metrics.read",
+    "seo.read",
+    "seo.manage",
+    "seo.run",
+    "seo.findings.manage",
     "recommendations.read",
     "recommendations.decide",
     "tasks.read",
@@ -64,6 +60,10 @@ const permissionsByRole: Readonly<Record<Role, readonly Permission[]>> = {
     "connections.read",
     "connections.manage",
     "metrics.read",
+    "seo.read",
+    "seo.manage",
+    "seo.run",
+    "seo.findings.manage",
     "recommendations.read",
     "recommendations.decide",
     "tasks.read",
@@ -92,6 +92,10 @@ const permissionsByRole: Readonly<Record<Role, readonly Permission[]>> = {
     "connections.read",
     "connections.manage",
     "metrics.read",
+    "seo.read",
+    "seo.manage",
+    "seo.run",
+    "seo.findings.manage",
     "recommendations.read",
     "recommendations.decide",
     "tasks.read",
@@ -112,6 +116,10 @@ const permissionsByRole: Readonly<Record<Role, readonly Permission[]>> = {
     "tenant.read",
     "connections.read",
     "metrics.read",
+    "seo.read",
+    "seo.manage",
+    "seo.run",
+    "seo.findings.manage",
     "recommendations.read",
     "recommendations.decide",
     "tasks.read",
@@ -125,6 +133,7 @@ const permissionsByRole: Readonly<Record<Role, readonly Permission[]>> = {
   ],
   content_editor: [
     "tenant.read",
+    "seo.read",
     "recommendations.read",
     "tasks.read",
     "tasks.write",
@@ -139,6 +148,8 @@ const permissionsByRole: Readonly<Record<Role, readonly Permission[]>> = {
     "tenant.read",
     "connections.read",
     "metrics.read",
+    "seo.read",
+    "seo.run",
     "recommendations.read",
     "tasks.read",
     "reviews.read",
@@ -153,6 +164,10 @@ const permissionsByRole: Readonly<Record<Role, readonly Permission[]>> = {
     "members.manage",
     "connections.read",
     "metrics.read",
+    "seo.read",
+    "seo.manage",
+    "seo.run",
+    "seo.findings.manage",
     "recommendations.read",
     "recommendations.decide",
     "tasks.read",
@@ -168,6 +183,8 @@ const permissionsByRole: Readonly<Record<Role, readonly Permission[]>> = {
   client_approver: [
     "tenant.read",
     "metrics.read",
+    "seo.read",
+    "seo.findings.manage",
     "recommendations.read",
     "tasks.read",
     "reviews.read",
@@ -180,6 +197,7 @@ const permissionsByRole: Readonly<Record<Role, readonly Permission[]>> = {
   client_viewer: [
     "tenant.read",
     "metrics.read",
+    "seo.read",
     "recommendations.read",
     "tasks.read",
     "reviews.read",

@@ -20,6 +20,7 @@
     "@growth-manager/domain": "workspace:*",
     "@growth-manager/integrations": "workspace:*",
     "@growth-manager/observability": "workspace:*",
+    "@growth-manager/seo-engine": "workspace:*",
     "@vercel/node": "5.8.27",
     "drizzle-orm": "catalog:",
     "zod": "catalog:"

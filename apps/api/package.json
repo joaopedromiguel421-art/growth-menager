@@ -24,6 +24,7 @@
     "@growth-manager/domain": "workspace:*",
     "@growth-manager/integrations": "workspace:*",
     "@growth-manager/observability": "workspace:*",
+    "@growth-manager/seo-engine": "workspace:*",
     "@nestjs/common": "catalog:",
     "@nestjs/core": "catalog:",
     "@nestjs/platform-fastify": "catalog:",

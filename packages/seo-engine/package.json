@@ -1,0 +1,26 @@
+{
+  "name": "@growth-manager/seo-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rimraf dist",
+    "lint": "eslint src",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run src",
+    "test:unit": "vitest run src"
+  },
+  "dependencies": {
+    "@growth-manager/contracts": "workspace:*",
+    "@growth-manager/domain": "workspace:*",
+    "cheerio": "1.2.0",
+    "zod": "catalog:"
+  }
+}

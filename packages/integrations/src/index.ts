@@ -4,7 +4,17 @@ export type ProviderName =
   | "ga4"
   | "instagram"
   | "dataforseo"
-  | "deepseek";
+  | "deepseek"
+  | "pagespeed"
+  | "crux"
+  | "firecrawl"
+  | "moz"
+  | "ahrefs"
+  | "bing"
+  | "common_crawl"
+  | "profound"
+  | "seranking"
+  | "openstreetmap";
 
 export interface ProviderCredential {
   readonly secretRef: string;
@@ -78,3 +88,9 @@ export class FakeProviderAdapter implements ProviderAdapter {
 export * from "./resend.js";
 export * from "./google/oauth.js";
 export * from "./google/api.js";
+export * from "./seo/ports.js";
+export * from "./seo/safe-fetch.js";
+export * from "./seo/deepseek.js";
+export * from "./seo/dataforseo.js";
+export * from "./seo/firecrawl.js";
+export * from "./seo/artifact-store.js";

@@ -15,7 +15,12 @@ export const jobTypeSchema = z.enum([
   "notify",
   "export_tenant",
   "delete_tenant",
-  "archive_audit"
+  "archive_audit",
+  "seo_analysis_plan",
+  "seo_capability_execute",
+  "seo_analysis_aggregate",
+  "seo_baseline_compare",
+  "seo_report_render"
 ]);
 
 export const jobEnvelopeSchema = z

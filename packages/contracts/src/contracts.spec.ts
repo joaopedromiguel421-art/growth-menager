@@ -3,6 +3,11 @@ import { approvalDecisionSchema, recommendationDecisionSchema } from "./work.js"
 import { jobEnvelopeSchema } from "./jobs.js";
 import { tenantCreateSchema, tenantUpdateSchema } from "./tenants.js";
 import { invitationCreateSchema } from "./team.js";
+import {
+  seoFindingStatusUpdateSchema,
+  seoMonitoringProfileInputSchema,
+  seoTargetCreateSchema
+} from "./seo.js";
 
 describe("jobEnvelopeSchema", () => {
   it("rejects a job without tenant context", () => {
@@ -44,7 +49,10 @@ describe("tenantCreateSchema", () => {
   const organizationId = "01954d2e-3b80-7000-8000-000000000001";
 
   it("accepts an existing organization with only a name", () => {
-    const result = tenantCreateSchema.safeParse({ name: "Padaria Aurora", organization_id: organizationId });
+    const result = tenantCreateSchema.safeParse({
+      name: "Padaria Aurora",
+      organization_id: organizationId
+    });
 
     expect(result.success).toBe(true);
     // The defaults are what a minimal form submission relies on.
@@ -117,5 +125,25 @@ describe("invitationCreateSchema", () => {
         invitationCreateSchema.safeParse({ email: "pessoa@exemplo.com.br", role }).success
       ).toBe(false);
     }
+  });
+});
+
+describe("SEO contracts", () => {
+  it("accepts only HTTP targets", () => {
+    expect(seoTargetCreateSchema.safeParse({ url: "https://example.com" }).success).toBe(true);
+    expect(seoTargetCreateSchema.safeParse({ url: "file:///etc/passwd" }).success).toBe(false);
+  });
+
+  it("requires every core capability in a monitoring profile", () => {
+    const result = seoMonitoringProfileInputSchema.safeParse({
+      enabled_capabilities: ["technical", "content", "schema"]
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("requires a reason to dismiss a finding", () => {
+    expect(
+      seoFindingStatusUpdateSchema.safeParse({ version: 1, status: "dismissed" }).success
+    ).toBe(false);
   });
 });

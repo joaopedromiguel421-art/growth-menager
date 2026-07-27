@@ -24,6 +24,7 @@ const groups = [
     label: "Acompanhar",
     items: [
       ["!", "Alertas", "/app/alerts"],
+      ["SEO", "Monitoramento SEO", "/app/seo"],
       ["▤", "Relatórios", "/app/reports"],
       ["$", "Custos", "/app/costs"]
     ]

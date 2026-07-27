@@ -15,6 +15,10 @@ import {
   reviewReplySchema,
   reviewSchema,
   sessionTenantSchema,
+  seoAnalysisRunSchema,
+  seoBaselineSchema,
+  seoFindingSchema,
+  seoTargetSchema,
   syncJobSchema,
   taskSchema,
   teamMemberSchema,
@@ -36,6 +40,12 @@ import {
   type ReviewDetail,
   type ReviewReply,
   type SessionTenant,
+  type SeoAnalysisRun,
+  type SeoAnalysisRunRequest,
+  type SeoBaseline,
+  type SeoFinding,
+  type SeoTarget,
+  type SeoTargetCreate,
   type SyncJob,
   type Task,
   type TeamMember,
@@ -177,10 +187,7 @@ export function createTenant(
   });
 }
 
-export function updateTenant(
-  tenantId: string,
-  input: TenantUpdate
-): Promise<ApiResult<Tenant>> {
+export function updateTenant(tenantId: string, input: TenantUpdate): Promise<ApiResult<Tenant>> {
   return request(`/v1/tenants/${tenantId}`, tenantSchema, {
     method: "PATCH",
     tenantId,
@@ -236,6 +243,60 @@ export function acceptInvitation(token: string): Promise<ApiResult<InvitationAcc
 
 export function getDashboard(tenantId: string): Promise<ApiResult<Dashboard>> {
   return request(`/v1/tenants/${tenantId}/dashboard`, dashboardSchema, { tenantId });
+}
+
+export function listSeoTargets(tenantId: string): Promise<ApiResult<readonly SeoTarget[]>> {
+  return request(`/v1/tenants/${tenantId}/seo/targets`, z.array(seoTargetSchema), { tenantId });
+}
+
+export function createSeoTarget(
+  tenantId: string,
+  input: SeoTargetCreate
+): Promise<ApiResult<SeoTarget>> {
+  return request(`/v1/tenants/${tenantId}/seo/targets`, seoTargetSchema, {
+    method: "POST",
+    tenantId,
+    body: input
+  });
+}
+
+export function startSeoAnalysis(
+  tenantId: string,
+  idempotencyKey: string,
+  input: SeoAnalysisRunRequest
+): Promise<ApiResult<SeoAnalysisRun>> {
+  return request(`/v1/tenants/${tenantId}/seo/analysis-runs`, seoAnalysisRunSchema, {
+    method: "POST",
+    tenantId,
+    idempotencyKey,
+    body: input
+  });
+}
+
+export function listSeoHistory(
+  tenantId: string,
+  targetId: string
+): Promise<ApiResult<readonly SeoAnalysisRun[]>> {
+  return request(
+    `/v1/tenants/${tenantId}/seo/targets/${targetId}/history`,
+    z.array(seoAnalysisRunSchema),
+    { tenantId }
+  );
+}
+
+export function listSeoFindings(tenantId: string): Promise<ApiResult<readonly SeoFinding[]>> {
+  return request(`/v1/tenants/${tenantId}/seo/findings`, z.array(seoFindingSchema), { tenantId });
+}
+
+export function getSeoBaseline(
+  tenantId: string,
+  targetId: string
+): Promise<ApiResult<SeoBaseline | null>> {
+  return request(
+    `/v1/tenants/${tenantId}/seo/targets/${targetId}/baseline`,
+    seoBaselineSchema.nullable(),
+    { tenantId }
+  );
 }
 
 export function listRecommendations(
@@ -392,10 +453,7 @@ export function listReviews(tenantId: string): Promise<ApiResult<readonly Review
   return request(`/v1/tenants/${tenantId}/reviews`, z.array(reviewSchema), { tenantId });
 }
 
-export function getReview(
-  tenantId: string,
-  reviewId: string
-): Promise<ApiResult<ReviewDetail>> {
+export function getReview(tenantId: string, reviewId: string): Promise<ApiResult<ReviewDetail>> {
   return request(`/v1/tenants/${tenantId}/reviews/${reviewId}`, reviewDetailSchema, { tenantId });
 }
 

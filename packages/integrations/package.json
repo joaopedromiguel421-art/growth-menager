@@ -17,5 +17,8 @@
     "test": "vitest run src",
     "test:unit": "vitest run src",
     "test:contract": "vitest run src"
+  },
+  "dependencies": {
+    "zod": "catalog:"
   }
 }
