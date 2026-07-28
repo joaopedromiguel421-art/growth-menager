@@ -21,7 +21,7 @@
     "@growth-manager/integrations": "workspace:*",
     "@growth-manager/observability": "workspace:*",
     "@growth-manager/seo-engine": "workspace:*",
-    "@vercel/node": "5.8.27",
+    "@vercel/node": "5.9.0",
     "pdf-lib": "^1.17.1",
     "zod": "catalog:"
   }
