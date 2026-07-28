@@ -37,6 +37,32 @@ test("shell e dados são progressivos sem recarga completa", async ({ context, p
   await page.getByRole("link", { name: "Abrir quadro" }).click();
   await expect(page.getByRole("heading", { name: "Tarefas" })).toBeVisible();
   expect(await page.evaluate(() => performance.timeOrigin)).toBe(timeOrigin);
+  await expect(page.getByRole("link", { name: "Tarefas" })).toHaveAttribute("aria-current", "page");
+});
+
+test("menu móvel abre, informa seu estado e fecha sem perder contexto @a11y", async ({
+  context,
+  page
+}) => {
+  await context.addCookies([
+    {
+      name: "gm-access",
+      value: "synthetic-access-token",
+      domain: "localhost",
+      path: "/",
+      httpOnly: true,
+      sameSite: "Lax"
+    }
+  ]);
+
+  await page.goto("/app");
+  const trigger = page.getByRole("button", { name: "Abrir menu" });
+  await expect(trigger).toHaveAttribute("aria-expanded", "false");
+  await trigger.click();
+  await expect(trigger).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("navigation", { name: "Navegação principal" })).toBeVisible();
+  await page.getByRole("button", { name: "Fechar menu", exact: true }).click();
+  await expect(trigger).toHaveAttribute("aria-expanded", "false");
 });
 
 test("mutation bloqueia clique duplicado e anuncia o estado pendente @a11y", async ({

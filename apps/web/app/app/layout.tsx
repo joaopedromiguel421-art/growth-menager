@@ -37,9 +37,6 @@ async function AuthenticatedShell({
       <Navigation workspace={workspace} />
       <div className="app-main">
         <header className="topbar">
-          <button className="mobile-menu" aria-label="Abrir menu">
-            ☰
-          </button>
           <div className="topbar__tenant">
             <span>Cliente</span>
             <strong>{activeTenant?.name ?? "Nenhum cliente ativo"}</strong>

@@ -55,6 +55,7 @@ import {
   type TenantUpdate
 } from "@growth-manager/contracts";
 import { requireAccessToken } from "./auth";
+import { resolveApiTimeout, type ApiMethod } from "./api-timeout";
 
 export interface ApiFailure {
   readonly ok: false;
@@ -66,7 +67,7 @@ export interface ApiFailure {
 export type ApiResult<T> = { readonly ok: true; readonly data: T } | ApiFailure;
 
 interface RequestOptions {
-  readonly method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
+  readonly method?: ApiMethod;
   readonly tenantId?: string;
   readonly body?: unknown;
   readonly idempotencyKey?: string;
@@ -123,7 +124,7 @@ async function request<T>(
   }
 
   const method = options.method ?? "GET";
-  const timeoutMs = options.timeoutMs ?? (method === "GET" ? 4_000 : 5_000);
+  const timeoutMs = resolveApiTimeout(method, options.timeoutMs);
   const responseResult = await fetchApi(
     `${baseUrl.replace(/\/$/, "")}${path}`,
     method,

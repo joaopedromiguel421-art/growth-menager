@@ -3,6 +3,7 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 import type { CurrentSession, SessionTenant } from "@growth-manager/contracts";
 import { getCurrentSession, type ApiFailure } from "./api";
+export { initials, roleLabel } from "./workspace-display";
 
 export const ACTIVE_TENANT_COOKIE = "gm-tenant";
 
@@ -33,30 +34,3 @@ export const loadWorkspace = cache(async (): Promise<WorkspaceResult> => {
     }
   };
 });
-
-export function initials(value: string): string {
-  const parts = value
-    .trim()
-    .split(/\s+/)
-    .filter((part) => part.length > 0);
-  const first = parts[0]?.[0] ?? "?";
-  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "";
-  return `${first}${last}`.toUpperCase();
-}
-
-const roleLabels: Readonly<Record<SessionTenant["role"], string>> = {
-  platform_admin: "Administrador da plataforma",
-  agency_owner: "Dono da agência",
-  agency_manager: "Gestor da agência",
-  strategist: "Estrategista",
-  content_editor: "Editor de conteúdo",
-  analyst: "Analista",
-  client_admin: "Administrador do cliente",
-  client_approver: "Aprovador do cliente",
-  client_viewer: "Visualizador do cliente",
-  support: "Suporte"
-};
-
-export function roleLabel(role: SessionTenant["role"]): string {
-  return roleLabels[role];
-}
