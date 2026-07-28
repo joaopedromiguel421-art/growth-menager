@@ -2650,7 +2650,7 @@ Na coluna **Contrato**, `→` separa request e response. Erros listados compleme
 |---|---|---|---|---|
 | API-017 | `GET /tenants/{tenantId}/integrations` | Status/freshness; `integration.read` | sem body → `ConnectionSummary[]` | 404; `T-API-017` |
 | API-018 | `POST /tenants/{tenantId}/integrations/{provider}/authorize` | Iniciar OAuth; `integration.manage` | `{redirect_uri}` allowlist → `{authorization_url,state_expires_at}` | 400/409; idem; 10/min; `oauth.started`; `T-API-018` |
-| API-019 | `GET /integrations/{provider}/callback` | Finalizar OAuth; state+PKCE | query `code,state` → redirect interno sem token | 400/401/502; single-use state; `integration.connected`; `T-API-019` |
+| API-019 | `GET /integrations/{provider}/callback` | Finalizar OAuth; state+PKCE | query `code,state` → redirect interno sem token; a reivindicação atômica preserva o PKCE verifier antes de apagar o estado de uso único | 400/401/502; single-use state; `integration.connected`; `T-API-019` |
 | API-020 | `GET /tenants/{tenantId}/integrations/{provider}/properties` | Recursos disponíveis; `integration.read` | cursor/q → property candidates | 409 conexão; cache 5 min; `T-API-020` |
 | API-021 | `PUT /tenants/{tenantId}/integrations/{provider}/properties` | Selecionar recursos; `integration.manage` | `{property_ids:string[1..50]}` → selected list | 400/422; idem; `integration.properties_changed`; `T-API-021` |
 | API-022 | `DELETE /tenants/{tenantId}/integrations/{provider}` | Revogar conexão; `integration.manage` + MFA para write-capable | sem body → 204, preserva históricos | 409 job sensível; idem; `integration.disconnected`; `T-API-022` |
