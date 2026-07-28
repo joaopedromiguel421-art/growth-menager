@@ -438,7 +438,7 @@ export class IntegrationsService {
       .select()
       .from(schema.integrationProperties)
       .where(eq(schema.integrationProperties.connectionId, connection.id));
-    const refreshedAt = connection.propertiesRefreshedAt?.getTime() ?? 0;
+    const refreshedAt = propertyCacheRefreshedAt(connection.metadata);
     const cacheFresh = Date.now() - refreshedAt < PROPERTY_CACHE_TTL_MS;
     if (!forceRefresh && cacheFresh) return stored.map(toIntegrationProperty);
 
@@ -475,7 +475,15 @@ export class IntegrationsService {
 
     await database
       .update(schema.integrationConnections)
-      .set({ propertiesRefreshedAt: new Date(), updatedAt: new Date() })
+      .set({
+        metadata: sql`jsonb_set(
+          ${schema.integrationConnections.metadata},
+          '{properties_refreshed_at}',
+          to_jsonb(${new Date().toISOString()}::text),
+          true
+        )`,
+        updatedAt: new Date()
+      })
       .where(
         and(
           eq(schema.integrationConnections.id, connection.id),
@@ -637,6 +645,14 @@ export class IntegrationsService {
       systemActor: true
     };
   }
+}
+
+function propertyCacheRefreshedAt(metadata: unknown): number {
+  if (metadata === null || typeof metadata !== "object" || Array.isArray(metadata)) return 0;
+  const value = (metadata as Record<string, unknown>)["properties_refreshed_at"];
+  if (typeof value !== "string") return 0;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
 function toIntegrationProperty(

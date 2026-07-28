@@ -131,7 +131,6 @@ export const integrationConnections = app.table(
     authorizedAt: timestamp("authorized_at", { withTimezone: true }),
     expiresAt: timestamp("expires_at", { withTimezone: true }),
     lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
-    propertiesRefreshedAt: timestamp("properties_refreshed_at", { withTimezone: true }),
     errorCode: varchar("error_code", { length: 80 }),
     consentVersion: varchar("consent_version", { length: 32 }),
     metadata: jsonb("metadata").notNull().default({})
