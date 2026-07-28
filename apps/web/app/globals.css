@@ -58,7 +58,10 @@ a {
 
 button:focus-visible,
 a:focus-visible,
-input:focus-visible {
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible {
   outline: 3px solid rgb(91 69 232 / 25%);
   outline-offset: 2px;
 }
@@ -1349,6 +1352,20 @@ h2 {
   border-top: 1px solid var(--line);
 }
 
+.task-list__row details,
+.module-stats details {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
+details summary {
+  color: var(--brand);
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 750;
+  padding: 8px 0;
+}
+
 .task-form {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -1365,6 +1382,15 @@ h2 {
 .task-form .form-error,
 .task-form button {
   grid-column: 1 / -1;
+}
+
+.task-form .field--wide {
+  grid-column: 1 / -1;
+}
+
+.task-form textarea {
+  min-height: 96px;
+  resize: vertical;
 }
 
 .tenant-switcher__form {

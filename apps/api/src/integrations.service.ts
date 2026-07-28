@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 import { Inject, Injectable } from "@nestjs/common";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type {
   AuthorizeRequest,
   AuthorizeResponse,
@@ -11,7 +10,16 @@ import type {
   SyncJob
 } from "@growth-manager/contracts";
 import { parseConfig, type AppConfig } from "@growth-manager/config";
-import { schema, type Database, type DatabaseClient } from "@growth-manager/database";
+import {
+  and,
+  desc,
+  eq,
+  inArray,
+  schema,
+  sql,
+  type Database,
+  type DatabaseClient
+} from "@growth-manager/database";
 import { DomainError, newId, requirePermission, type TenantContext } from "@growth-manager/domain";
 import {
   authorizationUrl,
@@ -649,7 +657,7 @@ export class IntegrationsService {
 
 function propertyCacheRefreshedAt(metadata: unknown): number {
   if (metadata === null || typeof metadata !== "object" || Array.isArray(metadata)) return 0;
-  const value = (metadata as Record<string, unknown>)["properties_refreshed_at"];
+  const value = (metadata as Record<string, unknown>).properties_refreshed_at;
   if (typeof value !== "string") return 0;
   const timestamp = Date.parse(value);
   return Number.isFinite(timestamp) ? timestamp : 0;

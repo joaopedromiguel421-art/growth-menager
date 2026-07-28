@@ -1,4 +1,5 @@
 import type { NestFastifyApplication } from "@nestjs/platform-fastify";
+import type { FastifyInstance } from "fastify";
 import { logger } from "@growth-manager/observability";
 
 const processStartedAt = performance.now();
@@ -6,7 +7,7 @@ const processStartedAt = performance.now();
 export function registerRequestTimings(application: NestFastifyApplication): void {
   const starts = new WeakMap<object, number>();
   let firstRequest = true;
-  const server = application.getHttpAdapter().getInstance();
+  const server: FastifyInstance = application.getHttpAdapter().getInstance();
 
   server.addHook("onRequest", (request, _reply, done) => {
     starts.set(request, performance.now());

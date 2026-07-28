@@ -1,8 +1,7 @@
 import { createHash } from "node:crypto";
 import { Inject, Injectable } from "@nestjs/common";
-import { and, desc, eq } from "drizzle-orm";
 import type { Review, ReviewDetail, ReviewReply, ReviewReplyUpdate } from "@growth-manager/contracts";
-import { schema, type Database, type DatabaseClient } from "@growth-manager/database";
+import { and, desc, eq, schema, type Database, type DatabaseClient } from "@growth-manager/database";
 import {
   DomainError,
   buildReplyTemplate,

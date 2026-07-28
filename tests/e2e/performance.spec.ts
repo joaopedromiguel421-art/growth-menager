@@ -88,3 +88,32 @@ test("mutation bloqueia clique duplicado e anuncia o estado pendente @a11y", asy
   await expect(pendingButton.locator('[aria-live="polite"]')).toContainText("Criando…");
   await expect(page.getByRole("button", { name: "Criar tarefa" })).toBeEnabled();
 });
+
+test("módulos operacionais exibem telas funcionais em vez de placeholders", async ({
+  context,
+  page
+}) => {
+  await context.addCookies([
+    {
+      name: "gm-access",
+      value: "synthetic-access-token",
+      domain: "localhost",
+      path: "/",
+      httpOnly: true,
+      sameSite: "Lax"
+    }
+  ]);
+
+  for (const [path, heading] of [
+    ["/app/content", "Conteúdo"],
+    ["/app/calendar", "Calendário"],
+    ["/app/alerts", "Alertas"],
+    ["/app/reports", "Relatórios"],
+    ["/app/costs", "Custos"],
+    ["/app/settings/brand", "Marca"]
+  ] as const) {
+    await page.goto(path);
+    await expect(page.getByRole("heading", { name: heading, level: 1 })).toBeVisible();
+    await expect(page.getByText(/ainda não está disponível/i)).toHaveCount(0);
+  }
+});

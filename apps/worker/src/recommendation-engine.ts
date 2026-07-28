@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
-import { sql } from "drizzle-orm";
-import type { Database } from "@growth-manager/database";
+import { sql, type Database } from "@growth-manager/database";
 import {
   freshnessScore,
   newId,

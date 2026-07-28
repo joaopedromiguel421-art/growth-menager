@@ -1,7 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { sql } from "drizzle-orm";
 import type { Dashboard } from "@growth-manager/contracts";
-import type { DatabaseClient } from "@growth-manager/database";
+import { sql, type DatabaseClient } from "@growth-manager/database";
 import { requirePermission, type TenantContext } from "@growth-manager/domain";
 import { DATABASE } from "./database.provider.js";
 import { DashboardCacheService } from "./dashboard-cache.service.js";

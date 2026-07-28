@@ -1,9 +1,8 @@
 import { createHash } from "node:crypto";
 import { Inject, Injectable } from "@nestjs/common";
-import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { parseConfig } from "@growth-manager/config";
-import type { DatabaseClient } from "@growth-manager/database";
+import { sql, type DatabaseClient } from "@growth-manager/database";
 import { DomainError } from "@growth-manager/domain";
 import { verifyResendWebhook } from "@growth-manager/integrations";
 import { DATABASE } from "./database.provider.js";

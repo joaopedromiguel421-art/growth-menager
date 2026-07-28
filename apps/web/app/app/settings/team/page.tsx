@@ -3,7 +3,7 @@ import { getTeam } from "../../../../lib/api";
 import { loadWorkspace, roleLabel } from "../../../../lib/session";
 import { NoTenantState, WorkspaceError } from "../../../../components/workspace-error";
 import { SubmitButton } from "../../../../components/submit-button";
-import { revokeInvitationAction, revokeMemberAction } from "../../actions";
+import { changeMemberRoleAction, revokeInvitationAction, revokeMemberAction } from "../../actions";
 import { TeamInviteForm } from "./team-invite-form";
 
 export default async function TeamPage(): Promise<React.ReactNode> {
@@ -67,12 +67,34 @@ export default async function TeamPage(): Promise<React.ReactNode> {
                 </Badge>
                 {/* Revoking your own access would lock you out of this screen. */}
                 {canManage && member.user_id !== currentUserId && member.status === "active" ? (
-                  <form action={revokeMemberAction}>
-                    <input name="membership_id" type="hidden" value={member.membership_id} />
-                    <SubmitButton className="tertiary-button" pendingLabel="Removendo…">
-                      Remover
-                    </SubmitButton>
-                  </form>
+                  <div className="card-actions">
+                    <form action={changeMemberRoleAction}>
+                      <input name="membership_id" type="hidden" value={member.membership_id} />
+                      <select
+                        aria-label={`Papel de ${member.name}`}
+                        defaultValue={member.role}
+                        name="role"
+                      >
+                        <option value="agency_owner">Proprietário da agência</option>
+                        <option value="agency_manager">Gestor da agência</option>
+                        <option value="strategist">Estrategista</option>
+                        <option value="content_editor">Editor de conteúdo</option>
+                        <option value="analyst">Analista</option>
+                        <option value="client_admin">Administrador do cliente</option>
+                        <option value="client_approver">Aprovador do cliente</option>
+                        <option value="client_viewer">Leitor do cliente</option>
+                      </select>
+                      <SubmitButton className="tertiary-button" pendingLabel="Salvando…">
+                        Salvar papel
+                      </SubmitButton>
+                    </form>
+                    <form action={revokeMemberAction}>
+                      <input name="membership_id" type="hidden" value={member.membership_id} />
+                      <SubmitButton className="tertiary-button" pendingLabel="Removendo…">
+                        Remover
+                      </SubmitButton>
+                    </form>
+                  </div>
                 ) : null}
               </div>
             ))}

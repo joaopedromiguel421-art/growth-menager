@@ -24,10 +24,13 @@
   },
   "dependencies": {
     "@growth-manager/domain": "workspace:*",
-    "drizzle-orm": "catalog:",
     "postgres": "catalog:"
   },
   "devDependencies": {
-    "drizzle-kit": "0.31.10"
+    "drizzle-kit": "0.31.10",
+    "drizzle-orm": "catalog:"
+  },
+  "peerDependencies": {
+    "drizzle-orm": "^0.45.2"
   }
 }

@@ -22,7 +22,7 @@
     "@growth-manager/observability": "workspace:*",
     "@growth-manager/seo-engine": "workspace:*",
     "@vercel/node": "5.8.27",
-    "drizzle-orm": "catalog:",
+    "pdf-lib": "^1.17.1",
     "zod": "catalog:"
   }
 }

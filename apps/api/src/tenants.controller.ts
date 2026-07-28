@@ -45,7 +45,20 @@ export class TenantsController {
 
   @Patch(":tenantId")
   public update(@Req() request: AuthenticatedRequest, @Body() body: unknown): Promise<unknown> {
-    return this.tenants.update(this.context(request), tenantUpdateSchema.parse(body));
+    const input = tenantUpdateSchema.parse(body);
+    if ((input.status === "closing" || input.status === "closed") && request.authAal !== "aal2") {
+      throw new DomainError(
+        "GM-AUTH-MFA-REQUIRED",
+        "Confirme o MFA para encerrar o cliente.",
+        false
+      );
+    }
+    return this.tenants.update(this.context(request), input);
+  }
+
+  @Get(":tenantId")
+  public get(@Req() request: AuthenticatedRequest): Promise<unknown> {
+    return this.tenants.get(this.context(request));
   }
 
   private authSubject(request: AuthenticatedRequest): string {

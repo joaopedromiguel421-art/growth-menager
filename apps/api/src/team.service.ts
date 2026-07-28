@@ -1,6 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
 import { Inject, Injectable } from "@nestjs/common";
-import { sql } from "drizzle-orm";
 import { parseConfig, type AppConfig } from "@growth-manager/config";
 import type {
   Invitation,
@@ -11,7 +10,7 @@ import type {
   TeamMember,
   TeamOverview
 } from "@growth-manager/contracts";
-import type { DatabaseClient } from "@growth-manager/database";
+import { sql, type DatabaseClient } from "@growth-manager/database";
 import { DomainError, newId, requirePermission, type TenantContext } from "@growth-manager/domain";
 import { ResendEmailAdapter } from "@growth-manager/integrations";
 import { DATABASE } from "./database.provider.js";

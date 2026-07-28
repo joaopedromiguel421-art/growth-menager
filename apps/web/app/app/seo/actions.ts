@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createSeoTarget, startSeoAnalysis } from "../../../lib/api";
+import { createSeoTarget, startSeoAnalysis, updateSeoFindingStatus } from "../../../lib/api";
 import { loadWorkspace } from "../../../lib/session";
 
 async function activeTenantId(): Promise<string | null> {
@@ -46,4 +46,39 @@ export async function runSeoAnalysisAction(formData: FormData): Promise<void> {
     redirect(`/app/seo?target=${targetId}&error=${encodeURIComponent(result.message)}`);
   revalidatePath("/app/seo");
   redirect(`/app/seo?target=${targetId}&run=${result.data.id}`);
+}
+
+export async function manageSeoFindingAction(formData: FormData): Promise<void> {
+  const tenantId = await activeTenantId();
+  const input = readFindingAction(formData);
+  if (tenantId === null || input === null) return;
+  const result = await updateSeoFindingStatus(tenantId, input.findingId, {
+    version: input.version,
+    status: input.status,
+    reason: null,
+    dismiss_until: null
+  });
+  const targetQuery = input.targetId === null ? "" : `target=${input.targetId}`;
+  if (!result.ok) {
+    redirect(`/app/seo?${targetQuery}&error=${encodeURIComponent(result.message)}`);
+  }
+  revalidatePath("/app/seo");
+  revalidatePath("/app/tasks");
+}
+
+function readFindingAction(formData: FormData): {
+  readonly findingId: string;
+  readonly targetId: string | null;
+  readonly version: number;
+  readonly status: "acknowledged" | "accepted" | "in_progress";
+} | null {
+  const findingId = formData.get("finding_id");
+  const targetId = formData.get("target_id");
+  const rawVersion = formData.get("version");
+  const status = formData.get("status");
+  if (typeof findingId !== "string" || typeof rawVersion !== "string") return null;
+  if (status !== "acknowledged" && status !== "accepted" && status !== "in_progress") return null;
+  const version = Number.parseInt(rawVersion, 10);
+  if (!Number.isInteger(version) || version < 1) return null;
+  return { findingId, targetId: typeof targetId === "string" ? targetId : null, version, status };
 }

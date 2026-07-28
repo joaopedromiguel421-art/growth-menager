@@ -4,6 +4,9 @@ import postgres from "postgres";
 import type { TenantContext } from "@growth-manager/domain";
 import * as schema from "./schema.js";
 
+export { and, desc, eq, gte, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
+export type { SQL } from "drizzle-orm";
+
 export type Database = PostgresJsDatabase<typeof schema>;
 export type TenantTransaction<T> = (database: Database) => Promise<T>;
 

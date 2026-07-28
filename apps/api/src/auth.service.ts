@@ -1,8 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, eq, isNull, or } from "drizzle-orm";
-import { sql } from "drizzle-orm";
 import type { Role } from "@growth-manager/contracts";
-import { schema, type DatabaseClient } from "@growth-manager/database";
+import { and, eq, isNull, or, schema, sql, type DatabaseClient } from "@growth-manager/database";
 import { DomainError, permissionsForRole, type TenantContext } from "@growth-manager/domain";
 import { DATABASE } from "./database.provider.js";
 

@@ -14,6 +14,8 @@ import { IntegrationsService } from "./integrations.service.js";
 import { JwtAuthGuard } from "./jwt-auth.guard.js";
 import { ReviewsController } from "./reviews.controller.js";
 import { ReviewsService } from "./reviews.service.js";
+import { OperationsController } from "./operations.controller.js";
+import { OperationsService } from "./operations.service.js";
 import { SeoController } from "./seo.controller.js";
 import { SeoService } from "./seo.service.js";
 import { TeamController } from "./team.controller.js";
@@ -37,6 +39,7 @@ import { WebhookService } from "./webhook.service.js";
     TeamController,
     WorkController,
     ReviewsController,
+    OperationsController,
     SeoController,
     WebhookController
   ],
@@ -51,6 +54,7 @@ import { WebhookService } from "./webhook.service.js";
     TeamService,
     WorkService,
     ReviewsService,
+    OperationsService,
     SeoService,
     WebhookService,
     { provide: APP_GUARD, useClass: JwtAuthGuard },

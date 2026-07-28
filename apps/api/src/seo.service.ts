@@ -1,5 +1,4 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, desc, eq, inArray } from "drizzle-orm";
 import {
   seoAnalysisRunSchema,
   seoBaselineSchema,
@@ -23,7 +22,15 @@ import {
   type SeoTargetUpdate
 } from "@growth-manager/contracts";
 import { parseConfig } from "@growth-manager/config";
-import { schema, type DatabaseClient } from "@growth-manager/database";
+import {
+  and,
+  desc,
+  eq,
+  inArray,
+  schema,
+  type Database,
+  type DatabaseClient
+} from "@growth-manager/database";
 import {
   DomainError,
   newId,
@@ -466,6 +473,10 @@ export class SeoService {
       if (current === undefined)
         throw new DomainError("GM-SEO-FINDING-NOT-FOUND", "Achado não encontrado.", false);
       validateFindingStatusUpdate(current.status as SeoFinding["status"], input);
+      const recommendationId =
+        input.status === "accepted" && current.recommendationId === null
+          ? await this.convertFindingToTask(database, context, current)
+          : current.recommendationId;
       const rows = await database
         .update(schema.seoFindings)
         .set({
@@ -475,6 +486,7 @@ export class SeoService {
             input.status === "dismissed" && input.dismiss_until !== null
               ? new Date(input.dismiss_until)
               : null,
+          recommendationId,
           updatedAt: new Date(),
           version: input.version + 1
         })
@@ -503,6 +515,45 @@ export class SeoService {
         evidenceRows.map((row) => row.id)
       );
     });
+  }
+
+  private async convertFindingToTask(
+    database: Database,
+    context: TenantContext,
+    finding: typeof schema.seoFindings.$inferSelect
+  ): Promise<string> {
+    const recommendationId = newId();
+    const severity = finding.severity;
+    await database.insert(schema.recommendations).values({
+      id: recommendationId,
+      tenantId: context.tenantId,
+      title: finding.title,
+      description: finding.recommendation,
+      category: "seo",
+      status: "accepted",
+      priorityScore:
+        severity === "critical" ? 100 : severity === "high" ? 80 : severity === "medium" ? 60 : 40,
+      impact: "0.8000",
+      confidence: finding.confidence,
+      urgency: severity === "critical" ? "1.0000" : "0.6000",
+      alignment: "0.8000",
+      effort: "0.5000",
+      risk: severity === "critical" ? "critical" : severity === "high" ? "high" : "medium",
+      rationale: finding.description,
+      generatedBy: "rule",
+      acceptedAt: new Date()
+    });
+    await database.insert(schema.tasks).values({
+      id: newId(),
+      tenantId: context.tenantId,
+      recommendationId,
+      title: finding.title,
+      description: finding.recommendation,
+      status: "backlog",
+      priority: severity === "critical" ? "urgent" : severity === "high" ? "high" : "medium",
+      source: "seo_finding"
+    });
+    return recommendationId;
   }
 }
 

@@ -8,6 +8,12 @@ import {
   seoMonitoringProfileInputSchema,
   seoTargetCreateSchema
 } from "./seo.js";
+import {
+  budgetUpsertSchema,
+  contentUpdateSchema,
+  publicationUpdateSchema,
+  reportCreateSchema
+} from "./operations.js";
 
 describe("jobEnvelopeSchema", () => {
   it("rejects a job without tenant context", () => {
@@ -144,6 +150,34 @@ describe("SEO contracts", () => {
   it("requires a reason to dismiss a finding", () => {
     expect(
       seoFindingStatusUpdateSchema.safeParse({ version: 1, status: "dismissed" }).success
+    ).toBe(false);
+  });
+});
+
+describe("operational module contracts", () => {
+  it("rejects a budget whose hard limit is below its warning limit", () => {
+    expect(
+      budgetUpsertSchema.safeParse({
+        provider: "deepseek",
+        soft_limit: 100,
+        hard_limit: 90,
+        currency: "brl",
+        effective_from: "2026-07-01"
+      }).success
+    ).toBe(false);
+  });
+
+  it("requires optimistic concurrency for content changes", () => {
+    expect(contentUpdateSchema.safeParse({ title: "Novo título" }).success).toBe(false);
+  });
+
+  it("rejects an empty publication update", () => {
+    expect(publicationUpdateSchema.safeParse({ version: 1 }).success).toBe(false);
+  });
+
+  it("rejects an inverted report period", () => {
+    expect(
+      reportCreateSchema.safeParse({ period_start: "2026-07-31", period_end: "2026-07-01" }).success
     ).toBe(false);
   });
 });

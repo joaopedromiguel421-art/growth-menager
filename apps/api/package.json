@@ -32,13 +32,14 @@
     "@vercel/node": "5.8.27",
     "class-transformer": "0.5.1",
     "class-validator": "0.14.2",
-    "drizzle-orm": "catalog:",
+    "fastify": "catalog:",
     "jose": "catalog:",
     "reflect-metadata": "catalog:",
     "rxjs": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@growth-manager/test-kit": "workspace:*"
+    "@growth-manager/test-kit": "workspace:*",
+    "drizzle-orm": "catalog:"
   }
 }

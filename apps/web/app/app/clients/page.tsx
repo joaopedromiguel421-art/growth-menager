@@ -2,8 +2,11 @@ import Link from "next/link";
 import { Badge, Card, EmptyState } from "@growth-manager/ui";
 import type { SessionTenant } from "@growth-manager/contracts";
 import { loadWorkspace, roleLabel } from "../../../lib/session";
+import { getTenant } from "../../../lib/api";
 import { WorkspaceError } from "../../../components/workspace-error";
 import { ClientForm, type OrganizationOption } from "./client-form";
+import { SubmitButton } from "../../../components/submit-button";
+import { editClientAction } from "../actions";
 
 const statusLabels: Readonly<Record<SessionTenant["status"], string>> = {
   onboarding: "Em configuração",
@@ -29,6 +32,10 @@ export default async function ClientsPage(): Promise<React.ReactNode> {
   // list needs no extra round trip.
   const tenants = result.workspace.session.tenants;
   const canCreate = tenants.some((tenant) => tenant.permissions.includes("tenant.create"));
+  const detailResults = await Promise.all(tenants.map((tenant) => getTenant(tenant.id)));
+  const details = new Map(
+    detailResults.flatMap((result) => (result.ok ? [[result.data.id, result.data] as const] : []))
+  );
 
   const organizations: readonly OrganizationOption[] = [
     ...new Map(
@@ -82,6 +89,60 @@ export default async function ClientsPage(): Promise<React.ReactNode> {
                     Conectar fontes de dados
                   </Link>
                 </p>
+              ) : null}
+              {tenant.permissions.includes("tenant.update") && details.has(tenant.id) ? (
+                <details>
+                  <summary>Editar cliente</summary>
+                  <form action={editClientAction} className="task-form">
+                    <input name="tenant_id" type="hidden" value={tenant.id} />
+                    <input name="version" type="hidden" value={details.get(tenant.id)?.version} />
+                    <div className="field">
+                      <label htmlFor={`client-name-${tenant.id}`}>Nome</label>
+                      <input
+                        defaultValue={details.get(tenant.id)?.name}
+                        id={`client-name-${tenant.id}`}
+                        maxLength={160}
+                        name="name"
+                        required
+                      />
+                    </div>
+                    <div className="field">
+                      <label htmlFor={`client-legal-${tenant.id}`}>Razão social</label>
+                      <input
+                        defaultValue={details.get(tenant.id)?.legal_name ?? ""}
+                        id={`client-legal-${tenant.id}`}
+                        maxLength={200}
+                        name="legal_name"
+                      />
+                    </div>
+                    <div className="field">
+                      <label htmlFor={`client-industry-${tenant.id}`}>Segmento</label>
+                      <input
+                        defaultValue={details.get(tenant.id)?.industry ?? ""}
+                        id={`client-industry-${tenant.id}`}
+                        maxLength={80}
+                        name="industry"
+                      />
+                    </div>
+                    <input name="timezone" type="hidden" value={tenant.timezone} />
+                    <div className="field">
+                      <label htmlFor={`client-status-${tenant.id}`}>Status</label>
+                      <select
+                        defaultValue={tenant.status}
+                        id={`client-status-${tenant.id}`}
+                        name="status"
+                      >
+                        <option value="onboarding">Em configuração</option>
+                        <option value="active">Ativo</option>
+                        <option value="suspended">Suspenso</option>
+                        <option value="closing">Encerrar</option>
+                      </select>
+                    </div>
+                    <SubmitButton className="secondary-button" pendingLabel="Salvando…">
+                      Salvar cliente
+                    </SubmitButton>
+                  </form>
+                </details>
               ) : null}
             </Card>
           ))}

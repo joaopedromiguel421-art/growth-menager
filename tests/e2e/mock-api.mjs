@@ -33,7 +33,14 @@ const session = {
         "tasks.read",
         "tasks.write",
         "approvals.read",
-        "approvals.decide"
+        "approvals.decide",
+        "content.read",
+        "content.write",
+        "reports.read",
+        "reports.approve",
+        "reports.deliver",
+        "costs.read",
+        "costs.manage"
       ]
     }
   ]
@@ -69,6 +76,56 @@ const server = createServer(async (request, response) => {
   if (request.method === "GET" && url.pathname === `/v1/tenants/${tenantId}/tasks`) {
     await delay(250);
     send(response, 200, []);
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === `/v1/tenants/${tenantId}/team`) {
+    send(response, 200, { members: [], invitations: [] });
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === `/v1/tenants/${tenantId}/alerts`) {
+    send(response, 200, []);
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === `/v1/tenants/${tenantId}/content`) {
+    send(response, 200, []);
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === `/v1/tenants/${tenantId}/publications`) {
+    send(response, 200, []);
+    return;
+  }
+
+  if (
+    request.method === "GET" &&
+    url.pathname === `/v1/tenants/${tenantId}/integrations/google_business/properties`
+  ) {
+    send(response, 200, []);
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === `/v1/tenants/${tenantId}/reports`) {
+    send(response, 200, []);
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === `/v1/tenants/${tenantId}/brand-kit`) {
+    send(response, 200, null);
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === `/v1/tenants/${tenantId}/costs`) {
+    send(response, 200, {
+      period_start: "2026-07-01",
+      period_end: "2026-07-31",
+      currency: "BRL",
+      total: 0,
+      by_provider: [],
+      budgets: []
+    });
     return;
   }
 

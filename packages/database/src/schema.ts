@@ -636,6 +636,142 @@ export const reviewReplies = app.table(
   ]
 );
 
+export const brandKits = app.table(
+  "brand_kits",
+  {
+    ...mutableColumns,
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    name: varchar("name", { length: 160 }).notNull(),
+    voice: text("voice").notNull(),
+    audiences: jsonb("audiences").notNull(),
+    allowedClaims: jsonb("allowed_claims").notNull().default([]),
+    forbiddenClaims: jsonb("forbidden_claims").notNull().default([]),
+    visualTokens: jsonb("visual_tokens").notNull().default({}),
+    isActive: boolean("is_active").notNull().default(true)
+  },
+  (table) => [
+    uniqueIndex("brand_kits_active_uq")
+      .on(table.tenantId)
+      .where(sql`${table.isActive}`),
+    index("brand_kits_tenant_active_idx").on(table.tenantId, table.isActive)
+  ]
+);
+
+export const contentItems = app.table(
+  "content_items",
+  {
+    ...mutableColumns,
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    channel: varchar("channel", { length: 24 }).notNull(),
+    type: varchar("type", { length: 32 }).notNull(),
+    title: varchar("title", { length: 200 }).notNull(),
+    status: varchar("status", { length: 24 }).notNull(),
+    scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+    timezone: varchar("timezone", { length: 64 }).notNull(),
+    ownerId: uuid("owner_id").references(() => users.id),
+    brandKitId: uuid("brand_kit_id").references(() => brandKits.id),
+    campaign: varchar("campaign", { length: 120 }),
+    currentVersion: integer("current_version").notNull().default(1)
+  },
+  (table) => [
+    index("content_items_tenant_status_schedule_idx").on(
+      table.tenantId,
+      table.status,
+      table.scheduledAt
+    )
+  ]
+);
+
+export const contentVersions = app.table(
+  "content_versions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    contentItemId: uuid("content_item_id")
+      .notNull()
+      .references(() => contentItems.id),
+    version: integer("version").notNull(),
+    body: text("body").notNull(),
+    metadata: jsonb("metadata").notNull(),
+    createdBy: uuid("created_by").references(() => users.id),
+    promptVersion: varchar("prompt_version", { length: 64 }),
+    sha256: varchar("sha256", { length: 64 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    uniqueIndex("content_versions_item_version_uq").on(table.contentItemId, table.version),
+    index("content_versions_tenant_item_idx").on(table.tenantId, table.contentItemId)
+  ]
+);
+
+export const publications = app.table(
+  "publications",
+  {
+    ...mutableColumns,
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    contentItemId: uuid("content_item_id")
+      .notNull()
+      .references(() => contentItems.id),
+    contentVersion: integer("content_version").notNull(),
+    provider: varchar("provider", { length: 32 }).notNull(),
+    propertyId: uuid("property_id")
+      .notNull()
+      .references(() => integrationProperties.id),
+    status: varchar("status", { length: 24 }).notNull(),
+    scheduledAt: timestamp("scheduled_at", { withTimezone: true }).notNull(),
+    idempotencyKey: varchar("idempotency_key", { length: 160 }).notNull(),
+    externalId: varchar("external_id", { length: 255 }),
+    lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    failureCode: varchar("failure_code", { length: 80 })
+  },
+  (table) => [
+    uniqueIndex("publications_tenant_idempotency_uq").on(table.tenantId, table.idempotencyKey),
+    index("publications_tenant_status_schedule_idx").on(
+      table.tenantId,
+      table.status,
+      table.scheduledAt
+    )
+  ]
+);
+
+export const publicationAttempts = app.table(
+  "publication_attempts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    publicationId: uuid("publication_id")
+      .notNull()
+      .references(() => publications.id),
+    attempt: smallint("attempt").notNull(),
+    requestSha256: varchar("request_sha256", { length: 64 }).notNull(),
+    providerRequestId: varchar("provider_request_id", { length: 255 }),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }).notNull(),
+    outcome: varchar("outcome", { length: 24 }).notNull(),
+    httpStatus: smallint("http_status"),
+    error: jsonb("error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    uniqueIndex("publication_attempts_publication_attempt_uq").on(
+      table.publicationId,
+      table.attempt
+    ),
+    index("publication_attempts_tenant_publication_idx").on(table.tenantId, table.publicationId)
+  ]
+);
+
 export const reports = app.table(
   "reports",
   {
@@ -650,11 +786,127 @@ export const reports = app.table(
     firstReport: boolean("first_report").notNull(),
     approvedBy: uuid("approved_by").references(() => users.id),
     approvedAt: timestamp("approved_at", { withTimezone: true }),
-    publishedAt: timestamp("published_at", { withTimezone: true })
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    nextReviewAt: timestamp("next_review_at", { withTimezone: true })
   },
   (table) => [
     uniqueIndex("reports_tenant_period_uq").on(table.tenantId, table.periodStart, table.periodEnd),
     index("reports_tenant_status_period_idx").on(table.tenantId, table.status, table.periodEnd)
+  ]
+);
+
+export const reportSnapshots = app.table(
+  "report_snapshots",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    reportId: uuid("report_id")
+      .notNull()
+      .references(() => reports.id),
+    version: integer("version").notNull(),
+    data: jsonb("data").notNull(),
+    narrative: jsonb("narrative").notNull(),
+    htmlObjectKey: varchar("html_object_key", { length: 512 }).notNull(),
+    pdfObjectKey: varchar("pdf_object_key", { length: 512 }),
+    sha256: varchar("sha256", { length: 64 }).notNull(),
+    generatedAt: timestamp("generated_at", { withTimezone: true }).notNull(),
+    aiRunId: uuid("ai_run_id").references(() => aiRuns.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    uniqueIndex("report_snapshots_report_version_uq").on(table.reportId, table.version),
+    uniqueIndex("report_snapshots_tenant_sha_uq").on(table.tenantId, table.sha256),
+    index("report_snapshots_tenant_report_idx").on(table.tenantId, table.reportId)
+  ]
+);
+
+export const reportRecipients = app.table(
+  "report_recipients",
+  {
+    ...mutableColumns,
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    reportId: uuid("report_id")
+      .notNull()
+      .references(() => reports.id),
+    email: varchar("email", { length: 320 }).notNull(),
+    name: varchar("name", { length: 160 }),
+    kind: varchar("kind", { length: 20 }).notNull(),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    addedBy: uuid("added_by")
+      .notNull()
+      .references(() => users.id),
+    active: boolean("active").notNull().default(true)
+  },
+  (table) => [
+    uniqueIndex("report_recipients_report_email_uq").on(table.reportId, table.email),
+    index("report_recipients_tenant_email_idx").on(table.tenantId, table.email)
+  ]
+);
+
+export const reportDeliveries = app.table(
+  "report_deliveries",
+  {
+    ...mutableColumns,
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    reportId: uuid("report_id")
+      .notNull()
+      .references(() => reports.id),
+    snapshotVersion: integer("snapshot_version").notNull(),
+    recipientId: uuid("recipient_id")
+      .notNull()
+      .references(() => reportRecipients.id),
+    channel: varchar("channel", { length: 16 }).notNull().default("email"),
+    status: varchar("status", { length: 24 }).notNull(),
+    idempotencyKey: varchar("idempotency_key", { length: 160 }).notNull(),
+    providerMessageId: varchar("provider_message_id", { length: 255 }),
+    attempt: smallint("attempt").notNull().default(0),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    openedAt: timestamp("opened_at", { withTimezone: true }),
+    bouncedAt: timestamp("bounced_at", { withTimezone: true }),
+    errorCode: varchar("error_code", { length: 80 })
+  },
+  (table) => [
+    uniqueIndex("report_deliveries_tenant_idempotency_uq").on(table.tenantId, table.idempotencyKey),
+    index("report_deliveries_tenant_status_idx").on(table.tenantId, table.status, table.createdAt),
+    index("report_deliveries_tenant_report_recipient_idx").on(
+      table.tenantId,
+      table.reportId,
+      table.recipientId
+    )
+  ]
+);
+
+export const notifications = app.table(
+  "notifications",
+  {
+    ...mutableColumns,
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    type: varchar("type", { length: 80 }).notNull(),
+    priority: varchar("priority", { length: 16 }).notNull(),
+    title: varchar("title", { length: 200 }).notNull(),
+    body: text("body").notNull(),
+    actionUrl: varchar("action_url", { length: 512 }),
+    dedupeKey: varchar("dedupe_key", { length: 160 }).notNull(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    dismissedAt: timestamp("dismissed_at", { withTimezone: true }),
+    relatedType: varchar("related_type", { length: 40 }),
+    relatedId: uuid("related_id")
+  },
+  (table) => [
+    uniqueIndex("notifications_user_dedupe_uq").on(table.userId, table.dedupeKey),
+    index("notifications_tenant_user_read_idx").on(table.tenantId, table.userId, table.readAt)
   ]
 );
 

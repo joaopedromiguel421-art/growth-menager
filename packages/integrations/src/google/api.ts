@@ -441,6 +441,40 @@ export async function replyToReview(input: {
   }
 }
 
+export async function createLocalPost(
+  input: {
+    readonly accessToken: string;
+    /** accounts/x/locations/y, as stored on app.integration_properties.external_id. */
+    readonly locationExternalId: string;
+    readonly summary: string;
+  },
+  fetchImpl: typeof fetch = fetch
+): Promise<{ readonly externalId: string }> {
+  if (!/^accounts\/[^/]+\/locations\/[^/]+$/.test(input.locationExternalId)) {
+    throw new Error("Google Business location ID has an invalid format");
+  }
+  if (input.summary.length < 1 || input.summary.length > 1500) {
+    throw new Error("Google Business local post must contain between 1 and 1500 characters");
+  }
+  const response = await fetchImpl(`${BUSINESS_REVIEWS}/${input.locationExternalId}/localPosts`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${input.accessToken}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ languageCode: "pt-BR", summary: input.summary, topicType: "STANDARD" }),
+    signal: AbortSignal.timeout(GOOGLE_REQUEST_TIMEOUT_MS)
+  });
+  if (!response.ok) {
+    throw new Error(`Google local post failed with status ${response.status.toString()}`);
+  }
+  const payload = asRecord(await response.json());
+  if (typeof payload.name !== "string") {
+    throw new Error("Google local post response omitted its resource name");
+  }
+  return { externalId: payload.name };
+}
+
 interface GoogleDate {
   readonly year?: number;
   readonly month?: number;

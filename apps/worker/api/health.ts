@@ -1,7 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { sql } from "drizzle-orm";
 import { parseConfig } from "@growth-manager/config";
-import { createDatabaseClient } from "@growth-manager/database";
+import { createDatabaseClient, sql } from "@growth-manager/database";
 
 export default async function handler(
   request: VercelRequest,

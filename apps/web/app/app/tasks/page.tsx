@@ -1,10 +1,10 @@
 import { Badge, Card, EmptyState } from "@growth-manager/ui";
 import type { Task } from "@growth-manager/contracts";
-import { listTasks } from "../../../lib/api";
+import { getTeam, listTasks } from "../../../lib/api";
 import { loadWorkspace } from "../../../lib/session";
 import { NoTenantState, WorkspaceError } from "../../../components/workspace-error";
 import { SubmitButton } from "../../../components/submit-button";
-import { setTaskStatusAction } from "../actions";
+import { editTaskAction, setTaskStatusAction } from "../actions";
 import { TaskForm } from "./task-form";
 
 const columns: readonly { readonly status: Task["status"]; readonly label: string }[] = [
@@ -29,11 +29,14 @@ export default async function TasksPage(): Promise<React.ReactNode> {
   const tenant = result.workspace.activeTenant;
   if (tenant === null) return <NoTenantState email={result.workspace.session.user.email} />;
 
-  const tasksResult = await listTasks(tenant.id);
+  const [tasksResult, teamResult] = await Promise.all([listTasks(tenant.id), getTeam(tenant.id)]);
   if (!tasksResult.ok) return <WorkspaceError failure={tasksResult} />;
 
   const tasks = tasksResult.data;
   const canWrite = tenant.permissions.includes("tasks.write");
+  const members = teamResult.ok
+    ? teamResult.data.members.filter((member) => member.status === "active")
+    : [];
 
   return (
     <main className="page">
@@ -100,6 +103,90 @@ export default async function TasksPage(): Promise<React.ReactNode> {
                               Concluir
                             </SubmitButton>
                           </form>
+                        ) : null}
+                        {canWrite ? (
+                          <details>
+                            <summary>Editar</summary>
+                            <form action={editTaskAction} className="task-form">
+                              <input name="task_id" type="hidden" value={task.id} />
+                              <input name="version" type="hidden" value={task.version} />
+                              <div className="field">
+                                <label htmlFor={`task-title-${task.id}`}>Título</label>
+                                <input
+                                  defaultValue={task.title}
+                                  id={`task-title-${task.id}`}
+                                  maxLength={200}
+                                  name="title"
+                                  required
+                                />
+                              </div>
+                              <div className="field">
+                                <label htmlFor={`task-description-${task.id}`}>Descrição</label>
+                                <textarea
+                                  defaultValue={task.description ?? ""}
+                                  id={`task-description-${task.id}`}
+                                  maxLength={5000}
+                                  name="description"
+                                  rows={3}
+                                />
+                              </div>
+                              <div className="field">
+                                <label htmlFor={`task-status-${task.id}`}>Status</label>
+                                <select
+                                  defaultValue={task.status}
+                                  id={`task-status-${task.id}`}
+                                  name="status"
+                                >
+                                  <option value="backlog">Backlog</option>
+                                  <option value="todo">A fazer</option>
+                                  <option value="in_progress">Em andamento</option>
+                                  <option value="blocked">Bloqueada</option>
+                                  <option value="done">Concluída</option>
+                                  <option value="cancelled">Cancelada</option>
+                                </select>
+                              </div>
+                              <div className="field">
+                                <label htmlFor={`task-priority-${task.id}`}>Prioridade</label>
+                                <select
+                                  defaultValue={task.priority}
+                                  id={`task-priority-${task.id}`}
+                                  name="priority"
+                                >
+                                  <option value="low">Baixa</option>
+                                  <option value="medium">Média</option>
+                                  <option value="high">Alta</option>
+                                  <option value="urgent">Urgente</option>
+                                </select>
+                              </div>
+                              <div className="field">
+                                <label htmlFor={`task-assignee-${task.id}`}>Responsável</label>
+                                <select
+                                  defaultValue={task.assignee_id ?? ""}
+                                  id={`task-assignee-${task.id}`}
+                                  name="assignee_id"
+                                >
+                                  <option value="">Sem responsável</option>
+                                  {members.map((member) => (
+                                    <option key={member.user_id} value={member.user_id}>
+                                      {member.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div className="field">
+                                <label htmlFor={`task-due-${task.id}`}>Prazo</label>
+                                <input
+                                  defaultValue={task.due_at?.slice(0, 10) ?? ""}
+                                  id={`task-due-${task.id}`}
+                                  name="due_at"
+                                  type="date"
+                                />
+                              </div>
+                              <SubmitButton className="secondary-button" pendingLabel="Salvando…">
+                                Salvar tarefa
+                              </SubmitButton>
+                            </form>
+                          </details>
                         ) : null}
                       </div>
                     ))}

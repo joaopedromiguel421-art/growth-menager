@@ -11,7 +11,11 @@ import {
 } from "@growth-manager/contracts";
 import {
   authorizeConnection,
+  createContent,
   createInvitation,
+  createPublication,
+  createReport,
+  createReportDelivery,
   createTask,
   createTenant,
   decideApproval,
@@ -21,8 +25,16 @@ import {
   requestConnectionSync,
   revokeInvitation,
   selectConnectionProperties,
+  submitContent,
+  submitReport,
+  updateAlert,
+  updateContent,
   updateMembership,
-  updateTask
+  updatePublication,
+  upsertBrandKit,
+  upsertBudget,
+  updateTask,
+  updateTenant
 } from "../../lib/api";
 import { signOut } from "../../lib/auth";
 import { ACTIVE_TENANT_COOKIE, loadWorkspace } from "../../lib/session";
@@ -343,4 +355,269 @@ export async function decideApprovalAction(formData: FormData): Promise<void> {
   });
   revalidatePath("/app/approvals");
   revalidatePath("/app/reviews");
+}
+
+export async function editClientAction(formData: FormData): Promise<void> {
+  const tenantId = text(formData, "tenant_id");
+  const version = positiveInteger(formData, "version");
+  if (tenantId.length === 0 || version === null) return;
+  const statusValue = text(formData, "status");
+  const status = ["onboarding", "active", "suspended", "closing"].includes(statusValue)
+    ? (statusValue as "onboarding" | "active" | "suspended" | "closing")
+    : "active";
+  await updateTenant(tenantId, {
+    version,
+    name: text(formData, "name"),
+    legal_name: optional(formData, "legal_name"),
+    industry: optional(formData, "industry"),
+    timezone: text(formData, "timezone"),
+    status
+  });
+  revalidatePath("/app");
+  revalidatePath("/app/clients");
+}
+
+export async function editTaskAction(formData: FormData): Promise<void> {
+  const tenantId = await activeTenantId();
+  const taskId = text(formData, "task_id");
+  const version = positiveInteger(formData, "version");
+  if (tenantId === null || taskId.length === 0 || version === null) return;
+  const statusValue = text(formData, "status");
+  const status = ["backlog", "todo", "in_progress", "blocked", "done", "cancelled"].includes(
+    statusValue
+  )
+    ? (statusValue as Task["status"])
+    : "backlog";
+  await updateTask(tenantId, taskId, crypto.randomUUID(), {
+    version,
+    title: text(formData, "title"),
+    description: optional(formData, "description"),
+    status,
+    priority: readPriority(formData),
+    assignee_id: optional(formData, "assignee_id"),
+    due_at: readDueAt(formData)
+  });
+  revalidatePath("/app");
+  revalidatePath("/app/tasks");
+}
+
+export async function changeMemberRoleAction(formData: FormData): Promise<void> {
+  const tenantId = await activeTenantId();
+  const membershipId = formData.get("membership_id");
+  const role = invitableRoleSchema.safeParse(formData.get("role"));
+  if (tenantId === null || typeof membershipId !== "string" || !role.success) return;
+  await updateMembership(tenantId, membershipId, { role: role.data });
+  revalidatePath("/app/settings/team");
+}
+
+function positiveInteger(formData: FormData, field: string): number | null {
+  const value = Number.parseInt(text(formData, field), 10);
+  return Number.isInteger(value) && value > 0 ? value : null;
+}
+
+export async function createContentAction(
+  _previous: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const tenantId = await activeTenantId();
+  if (tenantId === null) return { error: "Nenhum cliente ativo na sua sessão." };
+  const title = text(formData, "title");
+  const body = text(formData, "body");
+  if (title.length === 0 || body.length === 0) return { error: "Informe título e texto." };
+  const channelValue = text(formData, "channel");
+  const channel = [
+    "instagram",
+    "facebook",
+    "google_business",
+    "linkedin",
+    "blog",
+    "email"
+  ].includes(channelValue)
+    ? (channelValue as "instagram" | "facebook" | "google_business" | "linkedin" | "blog" | "email")
+    : "google_business";
+  const typeValue = text(formData, "type");
+  const type = ["post", "story", "article", "email", "update"].includes(typeValue)
+    ? (typeValue as "post" | "story" | "article" | "email" | "update")
+    : "post";
+  const result = await createContent(tenantId, crypto.randomUUID(), {
+    channel,
+    type,
+    title,
+    body,
+    timezone: "America/Sao_Paulo",
+    owner_id: null,
+    brand_kit_id: null,
+    campaign: optional(formData, "campaign")
+  });
+  if (!result.ok) return { error: result.message };
+  revalidatePath("/app/content");
+  return { error: null };
+}
+
+export async function setContentStatusAction(formData: FormData): Promise<void> {
+  const tenantId = await activeTenantId();
+  const contentId = text(formData, "content_id");
+  const version = positiveInteger(formData, "version");
+  const statusValue = text(formData, "status");
+  const allowed = ["draft", "review", "cancelled"] as const;
+  const status = allowed.find((candidate) => candidate === statusValue);
+  if (tenantId === null || contentId.length === 0 || version === null || status === undefined)
+    return;
+  await updateContent(tenantId, contentId, crypto.randomUUID(), { version, status });
+  revalidatePath("/app/content");
+  revalidatePath("/app/calendar");
+}
+
+export async function submitContentAction(formData: FormData): Promise<void> {
+  const tenantId = await activeTenantId();
+  const contentId = text(formData, "content_id");
+  if (tenantId === null || contentId.length === 0) return;
+  await submitContent(tenantId, contentId, crypto.randomUUID());
+  revalidatePath("/app/content");
+  revalidatePath("/app/approvals");
+}
+
+export async function schedulePublicationAction(
+  _previous: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const tenantId = await activeTenantId();
+  if (tenantId === null) return { error: "Nenhum cliente ativo na sua sessão." };
+  const contentItemId = text(formData, "content_item_id");
+  const propertyId = text(formData, "property_id");
+  const scheduledValue = text(formData, "scheduled_at");
+  if (contentItemId.length === 0 || propertyId.length === 0 || scheduledValue.length === 0) {
+    return { error: "Escolha o conteúdo, a propriedade e a data." };
+  }
+  const scheduledAt = new Date(scheduledValue);
+  if (Number.isNaN(scheduledAt.getTime())) return { error: "Informe uma data válida." };
+  const result = await createPublication(tenantId, crypto.randomUUID(), {
+    content_item_id: contentItemId,
+    provider: "google_business",
+    property_id: propertyId,
+    scheduled_at: scheduledAt.toISOString()
+  });
+  if (!result.ok) return { error: result.message };
+  revalidatePath("/app/calendar");
+  revalidatePath("/app/content");
+  return { error: null };
+}
+
+export async function cancelPublicationAction(formData: FormData): Promise<void> {
+  const tenantId = await activeTenantId();
+  const publicationId = text(formData, "publication_id");
+  const version = positiveInteger(formData, "version");
+  if (tenantId === null || publicationId.length === 0 || version === null) return;
+  await updatePublication(tenantId, publicationId, crypto.randomUUID(), {
+    version,
+    status: "cancelled"
+  });
+  revalidatePath("/app/calendar");
+}
+
+export async function updateAlertAction(formData: FormData): Promise<void> {
+  const tenantId = await activeTenantId();
+  const alertId = text(formData, "alert_id");
+  const version = positiveInteger(formData, "version");
+  const status = text(formData, "status") === "resolved" ? "resolved" : "acknowledged";
+  if (tenantId === null || alertId.length === 0 || version === null) return;
+  await updateAlert(tenantId, alertId, crypto.randomUUID(), { version, status });
+  revalidatePath("/app/alerts");
+  revalidatePath("/app");
+}
+
+export async function createReportAction(
+  _previous: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const tenantId = await activeTenantId();
+  if (tenantId === null) return { error: "Nenhum cliente ativo na sua sessão." };
+  const periodStart = text(formData, "period_start");
+  const periodEnd = text(formData, "period_end");
+  const result = await createReport(tenantId, crypto.randomUUID(), {
+    period_start: periodStart,
+    period_end: periodEnd
+  });
+  if (!result.ok) return { error: result.message };
+  revalidatePath("/app/reports");
+  return { error: null };
+}
+
+export async function submitReportAction(formData: FormData): Promise<void> {
+  const tenantId = await activeTenantId();
+  const reportId = text(formData, "report_id");
+  if (tenantId === null || reportId.length === 0) return;
+  await submitReport(tenantId, reportId, crypto.randomUUID());
+  revalidatePath("/app/reports");
+  revalidatePath("/app/approvals");
+}
+
+export async function deliverReportAction(
+  _previous: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const tenantId = await activeTenantId();
+  if (tenantId === null) return { error: "Nenhum cliente ativo na sua sessão." };
+  const reportId = text(formData, "report_id");
+  const email = text(formData, "email");
+  if (reportId.length === 0 || email.length === 0) return { error: "Informe o destinatário." };
+  const result = await createReportDelivery(tenantId, reportId, crypto.randomUUID(), {
+    email,
+    name: optional(formData, "name")
+  });
+  if (!result.ok) return { error: result.message };
+  revalidatePath("/app/reports");
+  return { error: null };
+}
+
+export async function saveBudgetAction(
+  _previous: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const tenantId = await activeTenantId();
+  if (tenantId === null) return { error: "Nenhum cliente ativo na sua sessão." };
+  const softLimit = Number(text(formData, "soft_limit"));
+  const hardLimit = Number(text(formData, "hard_limit"));
+  if (!Number.isFinite(softLimit) || !Number.isFinite(hardLimit))
+    return { error: "Informe limites válidos." };
+  const result = await upsertBudget(tenantId, crypto.randomUUID(), {
+    provider: text(formData, "provider"),
+    soft_limit: softLimit,
+    hard_limit: hardLimit,
+    currency: "BRL",
+    essential_override: formData.get("essential_override") === "on",
+    effective_from: text(formData, "effective_from")
+  });
+  if (!result.ok) return { error: result.message };
+  revalidatePath("/app/costs");
+  return { error: null };
+}
+
+export async function saveBrandKitAction(
+  _previous: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const tenantId = await activeTenantId();
+  if (tenantId === null) return { error: "Nenhum cliente ativo na sua sessão." };
+  const version = positiveInteger(formData, "version") ?? undefined;
+  const splitLines = (field: string): string[] =>
+    text(formData, field)
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+  const result = await upsertBrandKit(tenantId, crypto.randomUUID(), {
+    ...(version === undefined ? {} : { version }),
+    name: text(formData, "name"),
+    voice: text(formData, "voice"),
+    audiences: splitLines("audiences"),
+    allowed_claims: splitLines("allowed_claims"),
+    forbidden_claims: splitLines("forbidden_claims"),
+    visual_tokens: {
+      primary_color: text(formData, "primary_color"),
+      secondary_color: text(formData, "secondary_color")
+    }
+  });
+  if (!result.ok) return { error: result.message };
+  revalidatePath("/app/settings/brand");
+  return { error: null };
 }

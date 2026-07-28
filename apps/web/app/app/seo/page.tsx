@@ -6,7 +6,7 @@ import { getSeoBaseline, listSeoFindings, listSeoHistory, listSeoTargets } from 
 import { loadWorkspace } from "../../../lib/session";
 import { NoTenantState, WorkspaceError } from "../../../components/workspace-error";
 import { SubmitButton } from "../../../components/submit-button";
-import { createSeoTargetAction, runSeoAnalysisAction } from "./actions";
+import { createSeoTargetAction, manageSeoFindingAction, runSeoAnalysisAction } from "./actions";
 
 const severityTone = {
   critical: "danger",
@@ -16,7 +16,13 @@ const severityTone = {
   info: "neutral"
 } as const;
 
-function FindingCard({ finding }: { readonly finding: SeoFinding }): React.ReactNode {
+function FindingCard({
+  finding,
+  canManage
+}: {
+  readonly finding: SeoFinding;
+  readonly canManage: boolean;
+}): React.ReactNode {
   return (
     <Card>
       <div className="card-heading">
@@ -34,7 +40,38 @@ function FindingCard({ finding }: { readonly finding: SeoFinding }): React.React
       <p>
         <strong>Recomendação:</strong> {finding.recommendation}
       </p>
+      {canManage && finding.status === "open" ? (
+        <div className="card-actions">
+          <FindingAction finding={finding} label="Reconhecer" status="acknowledged" />
+          <FindingAction finding={finding} label="Criar tarefa" status="accepted" />
+        </div>
+      ) : null}
     </Card>
+  );
+}
+
+function FindingAction({
+  finding,
+  label,
+  status
+}: {
+  readonly finding: SeoFinding;
+  readonly label: string;
+  readonly status: "acknowledged" | "accepted";
+}): React.ReactNode {
+  return (
+    <form action={manageSeoFindingAction}>
+      <input name="finding_id" type="hidden" value={finding.id} />
+      <input name="target_id" type="hidden" value={finding.target_id} />
+      <input name="version" type="hidden" value={finding.version} />
+      <input name="status" type="hidden" value={status} />
+      <SubmitButton
+        className={status === "accepted" ? "secondary-button" : "tertiary-button"}
+        pendingLabel="Salvando…"
+      >
+        {label}
+      </SubmitButton>
+    </form>
   );
 }
 
@@ -144,7 +181,12 @@ export default async function SeoPage({
             </Card>
           }
         >
-          <SeoDetail canRun={canRun} selected={selected} tenantId={tenant.id} />
+          <SeoDetail
+            canManage={tenant.permissions.includes("seo.findings.manage")}
+            canRun={canRun}
+            selected={selected}
+            tenantId={tenant.id}
+          />
         </Suspense>
       )}
     </main>
@@ -154,11 +196,13 @@ export default async function SeoPage({
 async function SeoDetail({
   tenantId,
   selected,
-  canRun
+  canRun,
+  canManage
 }: {
   readonly tenantId: string;
   readonly selected: SeoTarget;
   readonly canRun: boolean;
+  readonly canManage: boolean;
 }): Promise<React.ReactNode> {
   const detail = await Promise.all([
     listSeoFindings(tenantId),
@@ -202,7 +246,9 @@ async function SeoDetail({
         <h2>Achados</h2>
         <div className="dashboard-grid">
           {findings.length > 0 ? (
-            findings.map((finding) => <FindingCard finding={finding} key={finding.id} />)
+            findings.map((finding) => (
+              <FindingCard canManage={canManage} finding={finding} key={finding.id} />
+            ))
           ) : (
             <Card>
               <EmptyState

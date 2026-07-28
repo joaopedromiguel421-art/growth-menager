@@ -1,6 +1,5 @@
-import { sql } from "drizzle-orm";
 import { jobEnvelopeSchema, type JobEnvelope } from "@growth-manager/contracts";
-import type { Database, DatabaseClient } from "@growth-manager/database";
+import { sql, type Database, type DatabaseClient } from "@growth-manager/database";
 import type { TenantContext } from "@growth-manager/domain";
 import { logger } from "@growth-manager/observability";
 import { JobProcessor } from "./job-processor.js";

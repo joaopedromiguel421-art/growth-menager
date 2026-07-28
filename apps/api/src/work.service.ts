@@ -1,5 +1,4 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, desc, eq, sql } from "drizzle-orm";
 import type {
   Approval,
   ApprovalDecision,
@@ -9,7 +8,15 @@ import type {
   TaskCreate,
   TaskUpdate
 } from "@growth-manager/contracts";
-import { schema, type Database, type DatabaseClient } from "@growth-manager/database";
+import {
+  and,
+  desc,
+  eq,
+  schema,
+  sql,
+  type Database,
+  type DatabaseClient
+} from "@growth-manager/database";
 import { DomainError, newId, requirePermission, type TenantContext } from "@growth-manager/domain";
 import { DATABASE } from "./database.provider.js";
 
@@ -218,8 +225,22 @@ export class WorkService {
         );
       }
 
+      if (approval.requestedBy === context.userId) {
+        throw new DomainError(
+          "GM-APPROVAL-SELF-DECISION",
+          "Quem solicitou não pode decidir a própria aprovação.",
+          false
+        );
+      }
+
       if (approval.subjectType === "review_reply") {
         await this.applyReviewReplyDecision(database, context, approval, decision, idempotencyKey);
+      }
+      if (approval.subjectType === "content") {
+        await this.applyContentDecision(database, context, approval, decision);
+      }
+      if (approval.subjectType === "report") {
+        await this.applyReportDecision(database, context, approval, decision);
       }
 
       await this.outbox(database, context, idempotencyKey, "approval_decided", {
@@ -264,7 +285,10 @@ export class WorkService {
       .update(schema.reviews)
       .set({ replyStatus: nextStatus, updatedAt: new Date() })
       .where(
-        and(eq(schema.reviews.id, approval.subjectId), eq(schema.reviews.tenantId, context.tenantId))
+        and(
+          eq(schema.reviews.id, approval.subjectId),
+          eq(schema.reviews.tenantId, context.tenantId)
+        )
       );
 
     if (decision.decision !== "approved") return;
@@ -310,6 +334,54 @@ export class WorkService {
       throw new DomainError("GM-TASK-CREATE", "Não foi possível criar a tarefa.", true);
     }
     return task;
+  }
+
+  private async applyContentDecision(
+    database: Database,
+    context: TenantContext,
+    approval: typeof schema.approvals.$inferSelect,
+    decision: ApprovalDecision
+  ): Promise<void> {
+    await database
+      .update(schema.contentItems)
+      .set({
+        status: decision.decision === "approved" ? "approved" : "draft",
+        updatedAt: new Date(),
+        version: sql`${schema.contentItems.version} + 1`
+      })
+      .where(
+        and(
+          eq(schema.contentItems.id, approval.subjectId),
+          eq(schema.contentItems.tenantId, context.tenantId),
+          eq(schema.contentItems.currentVersion, approval.subjectVersion),
+          eq(schema.contentItems.status, "review")
+        )
+      );
+  }
+
+  private async applyReportDecision(
+    database: Database,
+    context: TenantContext,
+    approval: typeof schema.approvals.$inferSelect,
+    decision: ApprovalDecision
+  ): Promise<void> {
+    await database
+      .update(schema.reports)
+      .set({
+        status: decision.decision === "approved" ? "approved" : "draft",
+        approvedBy: decision.decision === "approved" ? context.userId : null,
+        approvedAt: decision.decision === "approved" ? new Date() : null,
+        updatedAt: new Date(),
+        version: sql`${schema.reports.version} + 1`
+      })
+      .where(
+        and(
+          eq(schema.reports.id, approval.subjectId),
+          eq(schema.reports.tenantId, context.tenantId),
+          eq(schema.reports.currentVersion, approval.subjectVersion),
+          eq(schema.reports.status, "draft")
+        )
+      );
   }
 
   private async outbox(

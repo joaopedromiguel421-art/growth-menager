@@ -1,7 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { sql } from "drizzle-orm";
 import type { CurrentSession, Role } from "@growth-manager/contracts";
-import type { DatabaseClient } from "@growth-manager/database";
+import { sql, type DatabaseClient } from "@growth-manager/database";
 import { DomainError, permissionsForRole } from "@growth-manager/domain";
 import { DATABASE } from "./database.provider.js";
 

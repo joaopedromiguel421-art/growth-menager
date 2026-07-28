@@ -1,7 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { sql } from "drizzle-orm";
 import type { Tenant, TenantCreate, TenantUpdate } from "@growth-manager/contracts";
-import type { DatabaseClient } from "@growth-manager/database";
+import { sql, type DatabaseClient } from "@growth-manager/database";
 import { DomainError, requirePermission, type TenantContext } from "@growth-manager/domain";
 import { DATABASE } from "./database.provider.js";
 
@@ -146,6 +145,26 @@ export class TenantsService {
           "O cliente foi alterado por outra pessoa. Recarregue e tente de novo.",
           false
         );
+      }
+      return toTenant(row);
+    });
+  }
+
+  public get(context: TenantContext): Promise<Tenant> {
+    requirePermission(context, "tenant.read");
+    return this.client.withTenant(context, async (database) => {
+      const rows = await database.execute<TenantRow>(sql`
+        select t.id, t.organization_id, o.name as organization_name, t.name, t.legal_name,
+               t.slug, t.status, t.industry, t.country_code, t.timezone, t.locale,
+               t.onboarding_step, t.created_at, t.version
+        from app.tenants t
+        join app.organizations o on o.id = t.organization_id
+        where t.id = ${context.tenantId}
+        limit 1
+      `);
+      const row = rows[0];
+      if (row === undefined) {
+        throw new DomainError("GM-TENANT-NOT-FOUND", "Cliente não encontrado.", false);
       }
       return toTenant(row);
     });

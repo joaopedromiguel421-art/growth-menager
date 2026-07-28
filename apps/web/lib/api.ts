@@ -2,8 +2,13 @@ import "server-only";
 import { z } from "zod";
 import {
   approvalSchema,
+  alertSchema,
   authorizeResponseSchema,
+  brandKitSchema,
+  budgetSchema,
   connectionSummarySchema,
+  contentItemSchema,
+  costSummarySchema,
   currentSessionSchema,
   dashboardSchema,
   errorEnvelopeSchema,
@@ -11,6 +16,10 @@ import {
   invitationAcceptResultSchema,
   invitationCreateResultSchema,
   recommendationSchema,
+  publicationSchema,
+  reportSchema,
+  reportArtifactSchema,
+  reportDeliverySchema,
   reviewDetailSchema,
   reviewReplySchema,
   reviewSchema,
@@ -25,8 +34,17 @@ import {
   teamOverviewSchema,
   tenantSchema,
   type Approval,
+  type Alert,
   type AuthorizeResponse,
+  type BrandKit,
+  type BrandKitUpsert,
+  type Budget,
+  type BudgetUpsert,
   type ConnectionSummary,
+  type ContentCreate,
+  type ContentItem,
+  type ContentUpdate,
+  type CostSummary,
   type CurrentSession,
   type Dashboard,
   type IntegrationProperty,
@@ -35,7 +53,15 @@ import {
   type InvitationCreateResult,
   type MembershipUpdate,
   type Provider,
+  type Publication,
+  type PublicationCreate,
+  type PublicationUpdate,
   type Recommendation,
+  type Report,
+  type ReportArtifact,
+  type ReportDelivery,
+  type ReportDeliveryRequest,
+  type ReportCreate,
   type Review,
   type ReviewDetail,
   type ReviewReply,
@@ -44,10 +70,12 @@ import {
   type SeoAnalysisRunRequest,
   type SeoBaseline,
   type SeoFinding,
+  type SeoFindingStatusUpdate,
   type SeoTarget,
   type SeoTargetCreate,
   type SyncJob,
   type Task,
+  type TaskUpdate,
   type TeamMember,
   type TeamOverview,
   type Tenant,
@@ -369,7 +397,7 @@ export function updateTask(
   tenantId: string,
   taskId: string,
   idempotencyKey: string,
-  input: { readonly version: number; readonly status?: Task["status"] }
+  input: TaskUpdate
 ): Promise<ApiResult<unknown>> {
   return request(`/v1/tenants/${tenantId}/tasks/${taskId}`, z.unknown(), {
     method: "PATCH",
@@ -535,4 +563,199 @@ export function submitReviewReplyForApproval(
     z.unknown(),
     { method: "POST", tenantId, idempotencyKey }
   );
+}
+
+export function getTenant(tenantId: string): Promise<ApiResult<Tenant>> {
+  return request(`/v1/tenants/${tenantId}`, tenantSchema, { tenantId });
+}
+
+export function updateSeoFindingStatus(
+  tenantId: string,
+  findingId: string,
+  input: SeoFindingStatusUpdate
+): Promise<ApiResult<SeoFinding>> {
+  return request(`/v1/tenants/${tenantId}/seo/findings/${findingId}/status`, seoFindingSchema, {
+    method: "PATCH",
+    tenantId,
+    body: input
+  });
+}
+
+export function listAlerts(tenantId: string): Promise<ApiResult<readonly Alert[]>> {
+  return request(`/v1/tenants/${tenantId}/alerts`, z.array(alertSchema), { tenantId });
+}
+
+export function updateAlert(
+  tenantId: string,
+  alertId: string,
+  idempotencyKey: string,
+  input: { readonly version: number; readonly status: "acknowledged" | "resolved" }
+): Promise<ApiResult<Alert>> {
+  return request(`/v1/tenants/${tenantId}/alerts/${alertId}`, alertSchema, {
+    method: "PATCH",
+    tenantId,
+    idempotencyKey,
+    body: input
+  });
+}
+
+export function getCosts(tenantId: string, month?: string): Promise<ApiResult<CostSummary>> {
+  const query = month === undefined ? "" : `?month=${encodeURIComponent(month)}`;
+  return request(`/v1/tenants/${tenantId}/costs${query}`, costSummarySchema, { tenantId });
+}
+
+export function upsertBudget(
+  tenantId: string,
+  idempotencyKey: string,
+  input: BudgetUpsert
+): Promise<ApiResult<Budget>> {
+  return request(`/v1/tenants/${tenantId}/budgets`, budgetSchema, {
+    method: "PUT",
+    tenantId,
+    idempotencyKey,
+    body: input
+  });
+}
+
+export function getBrandKit(tenantId: string): Promise<ApiResult<BrandKit | null>> {
+  return request(`/v1/tenants/${tenantId}/brand-kit`, brandKitSchema.nullable(), { tenantId });
+}
+
+export function upsertBrandKit(
+  tenantId: string,
+  idempotencyKey: string,
+  input: BrandKitUpsert
+): Promise<ApiResult<BrandKit>> {
+  return request(`/v1/tenants/${tenantId}/brand-kit`, brandKitSchema, {
+    method: "PUT",
+    tenantId,
+    idempotencyKey,
+    body: input
+  });
+}
+
+export function listContent(tenantId: string): Promise<ApiResult<readonly ContentItem[]>> {
+  return request(`/v1/tenants/${tenantId}/content`, z.array(contentItemSchema), { tenantId });
+}
+
+export function createContent(
+  tenantId: string,
+  idempotencyKey: string,
+  input: ContentCreate
+): Promise<ApiResult<ContentItem>> {
+  return request(`/v1/tenants/${tenantId}/content`, contentItemSchema, {
+    method: "POST",
+    tenantId,
+    idempotencyKey,
+    body: input
+  });
+}
+
+export function updateContent(
+  tenantId: string,
+  contentId: string,
+  idempotencyKey: string,
+  input: ContentUpdate
+): Promise<ApiResult<ContentItem>> {
+  return request(`/v1/tenants/${tenantId}/content/${contentId}`, contentItemSchema, {
+    method: "PATCH",
+    tenantId,
+    idempotencyKey,
+    body: input
+  });
+}
+
+export function submitContent(
+  tenantId: string,
+  contentId: string,
+  idempotencyKey: string
+): Promise<ApiResult<unknown>> {
+  return request(`/v1/tenants/${tenantId}/content/${contentId}/submit`, z.unknown(), {
+    method: "POST",
+    tenantId,
+    idempotencyKey
+  });
+}
+
+export function listPublications(tenantId: string): Promise<ApiResult<readonly Publication[]>> {
+  return request(`/v1/tenants/${tenantId}/publications`, z.array(publicationSchema), { tenantId });
+}
+
+export function createPublication(
+  tenantId: string,
+  idempotencyKey: string,
+  input: PublicationCreate
+): Promise<ApiResult<Publication>> {
+  return request(`/v1/tenants/${tenantId}/publications`, publicationSchema, {
+    method: "POST",
+    tenantId,
+    idempotencyKey,
+    body: input
+  });
+}
+
+export function updatePublication(
+  tenantId: string,
+  publicationId: string,
+  idempotencyKey: string,
+  input: PublicationUpdate
+): Promise<ApiResult<Publication>> {
+  return request(`/v1/tenants/${tenantId}/publications/${publicationId}`, publicationSchema, {
+    method: "PATCH",
+    tenantId,
+    idempotencyKey,
+    body: input
+  });
+}
+
+export function listReports(tenantId: string): Promise<ApiResult<readonly Report[]>> {
+  return request(`/v1/tenants/${tenantId}/reports`, z.array(reportSchema), { tenantId });
+}
+
+export function createReport(
+  tenantId: string,
+  idempotencyKey: string,
+  input: ReportCreate
+): Promise<ApiResult<Report>> {
+  return request(`/v1/tenants/${tenantId}/reports`, reportSchema, {
+    method: "POST",
+    tenantId,
+    idempotencyKey,
+    body: input
+  });
+}
+
+export function getReportArtifact(
+  tenantId: string,
+  reportId: string
+): Promise<ApiResult<ReportArtifact>> {
+  return request(`/v1/tenants/${tenantId}/reports/${reportId}/artifact`, reportArtifactSchema, {
+    tenantId
+  });
+}
+
+export function submitReport(
+  tenantId: string,
+  reportId: string,
+  idempotencyKey: string
+): Promise<ApiResult<unknown>> {
+  return request(`/v1/tenants/${tenantId}/reports/${reportId}/submit`, z.unknown(), {
+    method: "POST",
+    tenantId,
+    idempotencyKey
+  });
+}
+
+export function createReportDelivery(
+  tenantId: string,
+  reportId: string,
+  idempotencyKey: string,
+  input: ReportDeliveryRequest
+): Promise<ApiResult<ReportDelivery>> {
+  return request(`/v1/tenants/${tenantId}/reports/${reportId}/deliveries`, reportDeliverySchema, {
+    method: "POST",
+    tenantId,
+    idempotencyKey,
+    body: input
+  });
 }

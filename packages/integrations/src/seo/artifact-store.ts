@@ -18,6 +18,14 @@ export interface RawArtifactStore {
     readonly bucket: "reports";
     readonly contentType: "text/html";
   }): Promise<RawArtifact>;
+  putPdf(input: {
+    readonly tenantId: string;
+    readonly category: string;
+    readonly artifactId: string;
+    readonly value: Uint8Array;
+    readonly bucket: "reports";
+    readonly contentType: "application/pdf";
+  }): Promise<RawArtifact>;
 }
 
 export class SupabaseRawArtifactStore implements RawArtifactStore {
@@ -57,11 +65,28 @@ export class SupabaseRawArtifactStore implements RawArtifactStore {
     });
   }
 
+  public putPdf(input: {
+    readonly tenantId: string;
+    readonly category: string;
+    readonly artifactId: string;
+    readonly value: Uint8Array;
+    readonly bucket: "reports";
+    readonly contentType: "application/pdf";
+  }): Promise<RawArtifact> {
+    const objectKey = `${input.tenantId}/${input.category}/${input.artifactId}.pdf`;
+    return this.put({
+      bucket: input.bucket,
+      contentType: input.contentType,
+      objectKey,
+      body: Uint8Array.from(input.value).buffer
+    });
+  }
+
   private async put(input: {
     readonly bucket: "raw" | "reports";
-    readonly contentType: "application/json" | "text/html";
+    readonly contentType: "application/json" | "text/html" | "application/pdf";
     readonly objectKey: string;
-    readonly body: string;
+    readonly body: string | ArrayBuffer;
   }): Promise<RawArtifact> {
     const fetchImpl = this.options.fetchImpl ?? fetch;
     const response = await fetchImpl(
@@ -82,7 +107,10 @@ export class SupabaseRawArtifactStore implements RawArtifactStore {
     }
     return {
       objectKey: input.objectKey,
-      bytes: new TextEncoder().encode(input.body).byteLength
+      bytes:
+        typeof input.body === "string"
+          ? new TextEncoder().encode(input.body).byteLength
+          : input.body.byteLength
     };
   }
 }
