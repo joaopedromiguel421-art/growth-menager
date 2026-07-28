@@ -39,17 +39,17 @@ export class IdentityService {
       );
 
       const rows = await transaction.execute<SessionRow>(sql`
-        with current_user as (
+        with session_user_row as (
           select id, auth_user_id, email, name, locale
           from app.users
           where auth_user_id = ${input.authUserId}::uuid and status = 'active'
           limit 1
         )
-        select current_user.id,
-               current_user.auth_user_id,
-               current_user.email,
-               current_user.name,
-               current_user.locale,
+        select session_user_row.id,
+               session_user_row.auth_user_id,
+               session_user_row.email,
+               session_user_row.name,
+               session_user_row.locale,
                coalesce((
                  select jsonb_agg(to_jsonb(tenant_row) order by tenant_row.name)
                  from (
@@ -65,14 +65,14 @@ export class IdentityService {
                    from app.tenants t
                    join app.organizations o on o.id = t.organization_id
                    join app.memberships m
-                     on m.user_id = current_user.id
+                     on m.user_id = session_user_row.id
                     and m.status = 'active'
                     and (m.expires_at is null or m.expires_at > now())
                     and (m.tenant_id = t.id or (m.tenant_id is null and m.organization_id = t.organization_id))
                    order by t.id, m.tenant_id nulls last, t.name
                  ) tenant_row
                ), '[]'::jsonb) as tenants
-        from current_user
+        from session_user_row
       `);
       const session = rows[0];
       if (session === undefined) {
