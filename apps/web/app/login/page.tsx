@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = { title: "Entrar" };
@@ -7,10 +8,10 @@ export default function LoginPage(): React.ReactNode {
   return (
     <main className="login-page">
       <section className="login-brand">
-        <a className="brand brand--light" href="/" aria-label="Growth Manager">
+        <Link className="brand brand--light" href="/" aria-label="Growth Manager">
           <span className="brand__mark">G</span>
           <span>Growth Manager</span>
-        </a>
+        </Link>
         <div className="login-brand__message">
           <p className="eyebrow eyebrow--light">Crescimento com clareza</p>
           <h1>Transforme sinais em prioridades que movem o negócio.</h1>
@@ -36,8 +37,8 @@ export default function LoginPage(): React.ReactNode {
             <a href="mailto:suporte@growthmanager.com.br">Precisa de ajuda?</a>
           </p>
           <p className="login-help">
-            Ao continuar, você concorda com os <a href="/termos">Termos de uso</a> e a{" "}
-            <a href="/privacidade">Política de privacidade</a>.
+            Ao continuar, você concorda com os <Link href="/termos">Termos de uso</Link> e a{" "}
+            <Link href="/privacidade">Política de privacidade</Link>.
           </p>
         </div>
       </section>

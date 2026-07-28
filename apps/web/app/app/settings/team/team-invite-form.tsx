@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { Card } from "@growth-manager/ui";
+import { SubmitButton } from "../../../../components/submit-button";
 import { inviteMemberAction, type ActionState } from "../../actions";
 
 const initialState: ActionState = { error: null };
@@ -20,7 +21,7 @@ const roles: readonly { readonly value: string; readonly label: string }[] = [
 ];
 
 export function TeamInviteForm({ tenantName }: { readonly tenantName: string }): React.ReactNode {
-  const [state, action, pending] = useActionState(inviteMemberAction, initialState);
+  const [state, action] = useActionState(inviteMemberAction, initialState);
 
   return (
     <Card>
@@ -62,9 +63,9 @@ export function TeamInviteForm({ tenantName }: { readonly tenantName: string }):
           </p>
         )}
 
-        <button className="primary-button" disabled={pending} type="submit">
-          {pending ? "Enviando…" : "Enviar convite"}
-        </button>
+        <SubmitButton className="primary-button" pendingLabel="Enviando…">
+          Enviar convite
+        </SubmitButton>
       </form>
     </Card>
   );

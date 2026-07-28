@@ -25,14 +25,17 @@
     "test:components": "pnpm --filter @growth-manager/web test:components",
     "test:e2e": "playwright test",
     "test:a11y": "playwright test --grep @a11y",
+    "test:performance:bundle": "node scripts/check-web-bundle.mjs",
+    "test:performance:lighthouse": "lhci autorun --config=lighthouserc.json",
     "db:generate": "pnpm --filter @growth-manager/database db:generate",
     "db:migrate": "supabase db push",
     "db:seed": "supabase db reset",
     "docs:check": "node scripts/docs-check.mjs",
-    "ci": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm docs:check"
+    "ci": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:performance:bundle && pnpm test:performance:lighthouse && pnpm docs:check"
   },
   "devDependencies": {
     "@eslint/js": "9.38.0",
+    "@lhci/cli": "0.15.1",
     "@playwright/test": "1.62.0",
     "@rolldown/binding-win32-x64-msvc": "1.1.5",
     "@types/node": "24.10.1",

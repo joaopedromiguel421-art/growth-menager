@@ -1,13 +1,14 @@
 "use client";
 
 import { useActionState } from "react";
-import { Button } from "@growth-manager/ui";
+import Link from "next/link";
+import { SubmitButton } from "../../components/submit-button";
 import { loginAction, type LoginState } from "./actions";
 
 const initialState: LoginState = { error: null };
 
 export function LoginForm(): React.ReactNode {
-  const [state, action, pending] = useActionState(loginAction, initialState);
+  const [state, action] = useActionState(loginAction, initialState);
 
   return (
     <form action={action} className="login-form">
@@ -25,7 +26,7 @@ export function LoginForm(): React.ReactNode {
       <div className="field">
         <div className="field__label-row">
           <label htmlFor="password">Senha</label>
-          <a href="/recovery">Esqueci minha senha</a>
+          <Link href="/recovery">Esqueci minha senha</Link>
         </div>
         <input
           id="password"
@@ -41,9 +42,7 @@ export function LoginForm(): React.ReactNode {
           {state.error}
         </p>
       )}
-      <Button type="submit" disabled={pending}>
-        {pending ? "Entrando…" : "Entrar"}
-      </Button>
+      <SubmitButton pendingLabel="Entrando…">Entrar</SubmitButton>
       <button className="passkey-button" type="button" disabled title="Disponível em breve">
         Usar passkey
         <span>Em breve</span>

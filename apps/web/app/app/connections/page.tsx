@@ -1,11 +1,14 @@
+import { Suspense } from "react";
 import { Badge, Card, EmptyState } from "@growth-manager/ui";
 import type { ConnectionSummary, IntegrationProperty, Provider } from "@growth-manager/contracts";
 import { listConnectionProperties, listConnections } from "../../../lib/api";
 import { loadWorkspace } from "../../../lib/session";
 import { NoTenantState, WorkspaceError } from "../../../components/workspace-error";
+import { SubmitButton } from "../../../components/submit-button";
 import {
   connectProviderAction,
   disconnectProviderAction,
+  refreshPropertiesAction,
   selectPropertiesAction,
   syncProviderAction
 } from "../actions";
@@ -92,23 +95,23 @@ function ConnectionActions({
     <div className="card-actions">
       <form action={connectProviderAction}>
         <input name="provider" type="hidden" value={provider} />
-        <button className="primary-button" type="submit">
+        <SubmitButton className="primary-button" pendingLabel="Abrindo Google…">
           {isActive ? "Reautorizar" : "Conectar"}
-        </button>
+        </SubmitButton>
       </form>
       {isActive ? (
         <>
           <form action={syncProviderAction}>
             <input name="provider" type="hidden" value={provider} />
-            <button className="tertiary-button" type="submit">
+            <SubmitButton className="tertiary-button" pendingLabel="Solicitando…">
               Sincronizar agora
-            </button>
+            </SubmitButton>
           </form>
           <form action={disconnectProviderAction}>
             <input name="provider" type="hidden" value={provider} />
-            <button className="tertiary-button" type="submit">
+            <SubmitButton className="tertiary-button" pendingLabel="Desconectando…">
               Desconectar
-            </button>
+            </SubmitButton>
           </form>
         </>
       ) : null}
@@ -119,13 +122,13 @@ function ConnectionActions({
 function ProviderCard({
   meta,
   connection,
-  properties,
-  canManage
+  canManage,
+  tenantId
 }: {
   readonly meta: (typeof providers)[number];
   readonly connection: ConnectionSummary | undefined;
-  readonly properties: readonly IntegrationProperty[];
   readonly canManage: boolean;
+  readonly tenantId: string;
 }): React.ReactNode {
   const status = connection?.status ?? "disconnected";
   const isActive = connection !== undefined && status === "active";
@@ -154,14 +157,41 @@ function ProviderCard({
       )}
 
       {isActive ? (
-        <PropertyPicker
-          canManage={canManage}
-          label={meta.propertyLabel}
-          properties={properties}
-          provider={meta.provider}
-        />
+        <Suspense fallback={<p className="muted">Carregando propriedades…</p>}>
+          <PropertyPanel
+            canManage={canManage}
+            label={meta.propertyLabel}
+            provider={meta.provider}
+            tenantId={tenantId}
+          />
+        </Suspense>
       ) : null}
     </Card>
+  );
+}
+
+async function PropertyPanel({
+  provider,
+  label,
+  canManage,
+  tenantId
+}: {
+  readonly provider: Provider;
+  readonly label: string;
+  readonly canManage: boolean;
+  readonly tenantId: string;
+}): Promise<React.ReactNode> {
+  const properties = await listConnectionProperties(tenantId, provider);
+  if (!properties.ok) {
+    return <p className="muted">A lista de propriedades não respondeu. Tente atualizar.</p>;
+  }
+  return (
+    <PropertyPicker
+      canManage={canManage}
+      label={label}
+      properties={properties.data}
+      provider={provider}
+    />
   );
 }
 
@@ -177,35 +207,56 @@ function PropertyPicker({
   readonly canManage: boolean;
 }): React.ReactNode {
   if (properties.length === 0) {
-    return <p className="muted">Nenhuma {label.toLowerCase()} disponível nesta conta Google.</p>;
+    return (
+      <div className="property-heading">
+        <p className="muted">Nenhuma {label.toLowerCase()} disponível nesta conta Google.</p>
+        {canManage ? <RefreshPropertiesButton provider={provider} /> : null}
+      </div>
+    );
   }
 
   return (
-    <form action={selectPropertiesAction}>
-      <input name="provider" type="hidden" value={provider} />
-      <h3>{label}</h3>
-      <div className="task-list">
-        {properties.map((property) => (
-          <label key={property.external_id}>
-            <input
-              defaultChecked={property.selected}
-              disabled={!canManage}
-              name="property_id"
-              type="checkbox"
-              value={property.external_id}
-            />
-            <span>
-              <strong>{property.name}</strong>
-              <small>{property.external_id}</small>
-            </span>
-          </label>
-        ))}
+    <div>
+      <div className="property-heading">
+        <h3>{label}</h3>
+        {canManage ? <RefreshPropertiesButton provider={provider} /> : null}
       </div>
-      {canManage ? (
-        <button className="secondary-button" type="submit">
-          Salvar seleção
-        </button>
-      ) : null}
+      <form action={selectPropertiesAction}>
+        <input name="provider" type="hidden" value={provider} />
+        <div className="task-list">
+          {properties.map((property) => (
+            <label key={property.external_id}>
+              <input
+                defaultChecked={property.selected}
+                disabled={!canManage}
+                name="property_id"
+                type="checkbox"
+                value={property.external_id}
+              />
+              <span>
+                <strong>{property.name}</strong>
+                <small>{property.external_id}</small>
+              </span>
+            </label>
+          ))}
+        </div>
+        {canManage ? (
+          <SubmitButton className="secondary-button" pendingLabel="Salvando…">
+            Salvar seleção
+          </SubmitButton>
+        ) : null}
+      </form>
+    </div>
+  );
+}
+
+function RefreshPropertiesButton({ provider }: { readonly provider: Provider }): React.ReactNode {
+  return (
+    <form action={refreshPropertiesAction}>
+      <input name="provider" type="hidden" value={provider} />
+      <SubmitButton className="tertiary-button" pendingLabel="Atualizando…">
+        Atualizar lista
+      </SubmitButton>
     </form>
   );
 }
@@ -239,17 +290,6 @@ export default async function ConnectionsPage({
 
   // Listing properties calls Google, so it only runs for providers already
   // connected; a failure there must not take the whole page down.
-  const propertyEntries = await Promise.all(
-    providers.map(async (meta) => {
-      if (byProvider.get(meta.provider)?.status !== "active") {
-        return [meta.provider, [] as readonly IntegrationProperty[]] as const;
-      }
-      const properties = await listConnectionProperties(tenant.id, meta.provider);
-      return [meta.provider, properties.ok ? properties.data : []] as const;
-    })
-  );
-  const propertiesByProvider = new Map(propertyEntries);
-
   const params = await searchParams;
   const errorMessage = typeof params.error === "string" ? params.error : null;
   const connected = typeof params.connected === "string" ? params.connected : null;
@@ -289,7 +329,7 @@ export default async function ConnectionsPage({
             connection={byProvider.get(meta.provider)}
             key={meta.provider}
             meta={meta}
-            properties={propertiesByProvider.get(meta.provider) ?? []}
+            tenantId={tenant.id}
           />
         ))}
       </div>

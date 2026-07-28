@@ -1,19 +1,19 @@
 "use client";
 
 import { useActionState } from "react";
-import { Button } from "@growth-manager/ui";
+import { SubmitButton } from "../../components/submit-button";
 import { requestRecoveryAction, type RecoveryState } from "./actions";
 
 const initialState: RecoveryState = { submitted: false, error: null };
 
 export function RecoveryForm(): React.ReactNode {
-  const [state, action, pending] = useActionState(requestRecoveryAction, initialState);
+  const [state, action] = useActionState(requestRecoveryAction, initialState);
 
   if (state.submitted) {
     return (
       <p className="muted" role="status">
-        Se esse e-mail tiver uma conta, enviamos um link para redefinir a senha. Verifique sua
-        caixa de entrada.
+        Se esse e-mail tiver uma conta, enviamos um link para redefinir a senha. Verifique sua caixa
+        de entrada.
       </p>
     );
   }
@@ -36,9 +36,7 @@ export function RecoveryForm(): React.ReactNode {
           {state.error}
         </p>
       )}
-      <Button type="submit" disabled={pending}>
-        {pending ? "Enviando…" : "Enviar link de recuperação"}
-      </Button>
+      <SubmitButton pendingLabel="Enviando…">Enviar link de recuperação</SubmitButton>
     </form>
   );
 }

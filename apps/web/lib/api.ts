@@ -70,6 +70,7 @@ interface RequestOptions {
   readonly tenantId?: string;
   readonly body?: unknown;
   readonly idempotencyKey?: string;
+  readonly timeoutMs?: number;
 }
 
 function failure(status: number, code: string, message: string): ApiFailure {
@@ -121,26 +122,54 @@ async function request<T>(
     return failure(0, "GM-WEB-API-URL", "A variável API_BASE_URL não está configurada.");
   }
 
-  const headers = await buildHeaders(options);
+  const method = options.method ?? "GET";
+  const timeoutMs = options.timeoutMs ?? (method === "GET" ? 4_000 : 5_000);
+  const responseResult = await fetchApi(
+    `${baseUrl.replace(/\/$/, "")}${path}`,
+    method,
+    await buildHeaders(options),
+    options.body,
+    timeoutMs
+  );
+  if (!responseResult.ok) return responseResult;
 
-  let response: Response;
+  const response = responseResult.response;
+  if (!response.ok) return readFailure(response);
+  return readBody(response, schema);
+}
+
+async function fetchApi(
+  url: string,
+  method: NonNullable<RequestOptions["method"]>,
+  headers: Readonly<Record<string, string>>,
+  body: unknown,
+  timeoutMs: number
+): Promise<{ readonly ok: true; readonly response: Response } | ApiFailure> {
   try {
-    response = await fetch(`${baseUrl.replace(/\/$/, "")}${path}`, {
-      method: options.method ?? "GET",
+    const response = await fetch(url, {
+      method,
       headers,
-      ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
-      cache: "no-store"
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(timeoutMs)
     });
-  } catch {
+    return { ok: true, response };
+  } catch (error) {
+    if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
+      return failure(
+        0,
+        "GM-WEB-API-TIMEOUT",
+        method === "GET"
+          ? "Os dados demoraram mais que o esperado. Tente novamente."
+          : "A confirmação demorou. Atualize a tela antes de repetir a ação."
+      );
+    }
     return failure(
       0,
       "GM-WEB-API-UNREACHABLE",
       "Não foi possível falar com a API. Verifique se ela está no ar."
     );
   }
-
-  if (!response.ok) return readFailure(response);
-  return readBody(response, schema);
 }
 
 async function readBody<T>(response: Response, schema: z.ZodType<T>): Promise<ApiResult<T>> {
@@ -389,6 +418,17 @@ export function selectConnectionProperties(
     `/v1/tenants/${tenantId}/integrations/${provider}/properties`,
     z.array(integrationPropertySchema),
     { method: "PUT", tenantId, body: { property_ids: propertyIds } }
+  );
+}
+
+export function refreshConnectionProperties(
+  tenantId: string,
+  provider: Provider
+): Promise<ApiResult<readonly IntegrationProperty[]>> {
+  return request(
+    `/v1/tenants/${tenantId}/integrations/${provider}/properties/refresh`,
+    z.array(integrationPropertySchema),
+    { method: "POST", tenantId }
   );
 }
 

@@ -27,7 +27,7 @@
 html {
   background: var(--paper);
   color: var(--ink);
-  font-family: var(--font-body), Arial, sans-serif;
+  font-family: Inter, "Segoe UI", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -68,7 +68,7 @@ h1,
 h2,
 h3,
 .brand {
-  font-family: var(--font-display), Arial, sans-serif;
+  font-family: Inter, "Segoe UI", Arial, sans-serif;
 }
 
 h1 {
@@ -668,6 +668,196 @@ h2 {
   box-shadow: var(--shadow);
   min-width: 0;
   padding: 24px;
+  transition:
+    box-shadow 200ms ease,
+    transform 200ms ease;
+}
+
+@media (hover: hover) {
+  .gm-card:not(.skeleton-card):hover {
+    box-shadow: 0 18px 48px rgb(29 42 34 / 10%);
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes gm-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes gm-shimmer {
+  from {
+    transform: translateX(-110%);
+  }
+  to {
+    transform: translateX(110%);
+  }
+}
+
+@keyframes gm-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+.page:not(.page--loading) > .page-heading,
+.login-card,
+.legal-card {
+  animation: gm-enter 240ms ease-out both;
+}
+
+.dashboard-grid > .gm-card,
+.module-stats > .gm-card,
+.page > .gm-card,
+.page > section {
+  animation: gm-enter 260ms ease-out both;
+}
+
+.dashboard-grid > :nth-child(2),
+.module-stats > :nth-child(2) {
+  animation-delay: 60ms;
+}
+
+.dashboard-grid > :nth-child(3),
+.module-stats > :nth-child(3) {
+  animation-delay: 120ms;
+}
+
+.dashboard-grid > :nth-child(n + 4),
+.module-stats > :nth-child(n + 4) {
+  animation-delay: 180ms;
+}
+
+.button-spinner {
+  animation: gm-spin 700ms linear infinite;
+  border: 2px solid currentcolor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  display: inline-block;
+  height: 14px;
+  margin-right: 7px;
+  width: 14px;
+}
+
+.page--loading {
+  min-height: calc(100vh - 70px);
+}
+
+.page-heading--loading {
+  min-height: 126px;
+}
+
+.skeleton {
+  background: #e7ebe5;
+  border-radius: 8px;
+  display: block;
+  overflow: hidden;
+  position: relative;
+}
+
+.skeleton::after {
+  animation: gm-shimmer 1.35s ease-in-out infinite;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 72%), transparent);
+  content: "";
+  inset: 0;
+  position: absolute;
+  transform: translateX(-110%);
+}
+
+.skeleton--eyebrow {
+  height: 10px;
+  margin-bottom: 16px;
+  width: 104px;
+}
+
+.skeleton--title {
+  height: 44px;
+  margin-bottom: 14px;
+  max-width: 540px;
+  width: 72%;
+}
+
+.skeleton--copy {
+  height: 13px;
+  margin-top: 10px;
+  max-width: 620px;
+  width: 88%;
+}
+
+.skeleton--copy-short {
+  width: 58%;
+}
+
+.skeleton-signals > div {
+  min-height: 75px;
+}
+
+.skeleton--icon {
+  grid-row: span 2;
+  height: 36px;
+  width: 36px;
+}
+
+.skeleton--metric {
+  height: 16px;
+  width: 74%;
+}
+
+.skeleton--label {
+  height: 9px;
+  width: 54%;
+}
+
+.skeleton-card {
+  min-height: 215px;
+}
+
+.skeleton--card-title {
+  height: 24px;
+  margin-bottom: 24px;
+  width: 62%;
+}
+
+.sidebar--loading {
+  gap: 12px;
+}
+
+.skeleton--brand {
+  height: 34px;
+  margin: 0 10px 14px;
+  width: 150px;
+}
+
+.skeleton--tenant {
+  height: 58px;
+  margin-bottom: 10px;
+  width: 100%;
+}
+
+.skeleton--nav {
+  height: 34px;
+  margin: 0 8px;
+  width: calc(100% - 16px);
+}
+
+.topbar--loading {
+  gap: 20px;
+}
+
+.skeleton--topbar {
+  height: 28px;
+  width: 180px;
+}
+
+.skeleton--topbar-action {
+  height: 28px;
+  width: 96px;
 }
 
 .card-heading {
@@ -698,7 +888,7 @@ h2 {
   color: #fff;
   display: flex;
   flex: 0 0 auto;
-  font-family: var(--font-display);
+  font-family: Inter, "Segoe UI", Arial, sans-serif;
   font-size: 1.1rem;
   font-weight: 800;
   height: 48px;
@@ -1024,6 +1214,19 @@ h2 {
   font-size: 0.58rem;
 }
 
+.property-heading {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin-top: 20px;
+}
+
+.property-heading h3,
+.property-heading p {
+  margin-bottom: 0;
+}
+
 .sr-only {
   clip: rect(0 0 0 0);
   clip-path: inset(50%);
@@ -1100,7 +1303,7 @@ h2 {
 
 .module-stats__number {
   color: var(--brand);
-  font-family: var(--font-display);
+  font-family: Inter, "Segoe UI", Arial, sans-serif;
   font-size: 0.72rem;
   font-weight: 800;
 }
@@ -1322,6 +1525,7 @@ h2 {
   *::before,
   *::after {
     scroll-behavior: auto !important;
+    animation: none !important;
     transition-duration: 0.01ms !important;
   }
 }
@@ -1346,7 +1550,7 @@ h2 {
 .legal-card h1 {
   max-width: 680px;
   margin: 8px 0 28px;
-  font-family: var(--font-display), sans-serif;
+  font-family: Inter, "Segoe UI", Arial, sans-serif;
   font-size: clamp(2rem, 5vw, 3.5rem);
   line-height: 1.05;
 }

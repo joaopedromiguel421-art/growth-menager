@@ -1,10 +1,11 @@
 import { ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
-import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import { AppModule } from "./app.module.js";
+import { setupOpenApi } from "./openapi.js";
+import { registerRequestTimings } from "./request-timing.js";
 
 export async function createApplication(): Promise<NestFastifyApplication> {
   const adapter = new FastifyAdapter({
@@ -31,17 +32,9 @@ export async function createApplication(): Promise<NestFastifyApplication> {
       whitelist: true
     })
   );
+  registerRequestTimings(application);
 
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle("Growth Manager API")
-    .setVersion("1.1")
-    .addBearerAuth()
-    .build();
-  SwaggerModule.setup(
-    "openapi",
-    application,
-    SwaggerModule.createDocument(application, swaggerConfig)
-  );
+  if (process.env.APP_ENV !== "production") setupOpenApi(application);
 
   await application.init();
   await application.getHttpAdapter().getInstance().ready();

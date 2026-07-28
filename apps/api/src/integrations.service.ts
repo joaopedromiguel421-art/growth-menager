@@ -30,10 +30,12 @@ import {
 import { DATABASE } from "./database.provider.js";
 
 const STATE_TTL_MS = 10 * 60 * 1000;
+const PROPERTY_CACHE_TTL_MS = 15 * 60 * 1000;
 const GOOGLE_PROVIDERS = new Set<Provider>(["google_business", "search_console", "ga4"]);
 
 export interface CallbackResult {
   readonly redirectUrl: string;
+  readonly tenantId: string;
 }
 
 interface ClaimedState extends Record<string, unknown> {
@@ -202,7 +204,8 @@ export class IntegrationsService {
 
     const path = claimed.redirect_path ?? "/app/connections";
     return {
-      redirectUrl: `${this.config.PUBLIC_APP_URL}${path}?connected=${provider}`
+      redirectUrl: `${this.config.PUBLIC_APP_URL}${path}?connected=${provider}`,
+      tenantId: claimed.tenant_id
     };
   }
 
@@ -211,30 +214,20 @@ export class IntegrationsService {
     provider: Provider
   ): Promise<readonly IntegrationProperty[]> {
     requirePermission(context, "connections.read");
-    const googleProvider = this.requireGoogleProvider(provider);
-
     return this.client.withTenant(context, async (database) => {
       const connection = await this.activeConnection(database, context, provider);
-      const accessToken = await this.accessToken(database, connection);
-      const candidates = await this.fetchCandidates(googleProvider, accessToken);
+      return this.cachedProperties(database, context, connection, false);
+    });
+  }
 
-      const stored = await database
-        .select()
-        .from(schema.integrationProperties)
-        .where(eq(schema.integrationProperties.connectionId, connection.id));
-      const selectedIds = new Set(
-        stored.filter((row) => row.selected).map((row) => row.externalId)
-      );
-      const idById = new Map(stored.map((row) => [row.externalId, row.id]));
-
-      return candidates.map((candidate) => ({
-        id: idById.get(candidate.externalId) ?? null,
-        tenant_id: context.tenantId,
-        kind: candidate.kind,
-        external_id: candidate.externalId,
-        name: candidate.name,
-        selected: selectedIds.has(candidate.externalId)
-      }));
+  public refreshProperties(
+    context: TenantContext,
+    provider: Provider
+  ): Promise<readonly IntegrationProperty[]> {
+    requirePermission(context, "connections.manage");
+    return this.client.withTenant(context, async (database) => {
+      const connection = await this.activeConnection(database, context, provider);
+      return this.cachedProperties(database, context, connection, true);
     });
   }
 
@@ -244,13 +237,10 @@ export class IntegrationsService {
     selection: PropertySelection
   ): Promise<readonly IntegrationProperty[]> {
     requirePermission(context, "connections.manage");
-    const googleProvider = this.requireGoogleProvider(provider);
-
     return this.client.withTenant(context, async (database) => {
       const connection = await this.activeConnection(database, context, provider);
-      const accessToken = await this.accessToken(database, connection);
-      const candidates = await this.fetchCandidates(googleProvider, accessToken);
-      const byId = new Map(candidates.map((candidate) => [candidate.externalId, candidate]));
+      const candidates = await this.cachedProperties(database, context, connection, false);
+      const byId = new Map(candidates.map((candidate) => [candidate.external_id, candidate]));
 
       const unknown = selection.property_ids.filter((id) => !byId.has(id));
       if (unknown.length > 0) {
@@ -278,7 +268,7 @@ export class IntegrationsService {
             connectionId: connection.id,
             tenantId: context.tenantId,
             kind: candidate.kind,
-            externalId: candidate.externalId,
+            externalId: candidate.external_id,
             name: candidate.name,
             selected: true
           })
@@ -435,12 +425,69 @@ export class IntegrationsService {
   ): Promise<readonly PropertyCandidate[]> {
     if (provider === "google_business") return listBusinessLocations(accessToken);
     if (provider === "search_console") return listSearchConsoleSites(accessToken);
-    if (provider === "ga4") return listAnalyticsProperties(accessToken);
-    throw new DomainError(
-      "GM-INTEGRATION-UNSUPPORTED",
-      "Este provedor ainda não lista propriedades.",
-      false
+    return listAnalyticsProperties(accessToken);
+  }
+
+  private async cachedProperties(
+    database: Database,
+    context: TenantContext,
+    connection: typeof schema.integrationConnections.$inferSelect,
+    forceRefresh: boolean
+  ): Promise<readonly IntegrationProperty[]> {
+    const stored = await database
+      .select()
+      .from(schema.integrationProperties)
+      .where(eq(schema.integrationProperties.connectionId, connection.id));
+    const refreshedAt = connection.propertiesRefreshedAt?.getTime() ?? 0;
+    const cacheFresh = Date.now() - refreshedAt < PROPERTY_CACHE_TTL_MS;
+    if (!forceRefresh && cacheFresh) return stored.map(toIntegrationProperty);
+
+    const googleProvider = this.requireGoogleProvider(connection.provider as Provider);
+    const accessToken = await this.accessToken(database, connection);
+    const candidates = await this.fetchCandidates(googleProvider, accessToken);
+    const selectedIds = new Set(
+      stored.filter((property) => property.selected).map((property) => property.externalId)
     );
+
+    if (candidates.length > 0) {
+      await database
+        .insert(schema.integrationProperties)
+        .values(
+          candidates.map((candidate) => ({
+            id: newId(),
+            connectionId: connection.id,
+            tenantId: context.tenantId,
+            kind: candidate.kind,
+            externalId: candidate.externalId,
+            name: candidate.name,
+            selected: selectedIds.has(candidate.externalId)
+          }))
+        )
+        .onConflictDoUpdate({
+          target: [
+            schema.integrationProperties.connectionId,
+            schema.integrationProperties.kind,
+            schema.integrationProperties.externalId
+          ],
+          set: { name: sql`excluded.name`, updatedAt: new Date() }
+        });
+    }
+
+    await database
+      .update(schema.integrationConnections)
+      .set({ propertiesRefreshedAt: new Date(), updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.integrationConnections.id, connection.id),
+          eq(schema.integrationConnections.tenantId, context.tenantId)
+        )
+      );
+
+    const refreshed = await database
+      .select()
+      .from(schema.integrationProperties)
+      .where(eq(schema.integrationProperties.connectionId, connection.id));
+    return refreshed.map(toIntegrationProperty);
   }
 
   /**
@@ -590,6 +637,19 @@ export class IntegrationsService {
       systemActor: true
     };
   }
+}
+
+function toIntegrationProperty(
+  property: typeof schema.integrationProperties.$inferSelect
+): IntegrationProperty {
+  return {
+    id: property.id,
+    tenant_id: property.tenantId,
+    kind: property.kind,
+    external_id: property.externalId,
+    name: property.name,
+    selected: property.selected
+  };
 }
 
 function hashState(state: string): string {

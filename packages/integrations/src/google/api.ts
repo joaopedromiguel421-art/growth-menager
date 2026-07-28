@@ -17,6 +17,7 @@ const BUSINESS_PERFORMANCE = "https://businessprofileperformance.googleapis.com/
 const SEARCH_CONSOLE = "https://searchconsole.googleapis.com/webmasters/v3";
 const ANALYTICS_ADMIN = "https://analyticsadmin.googleapis.com/v1beta";
 const ANALYTICS_DATA = "https://analyticsdata.googleapis.com/v1beta";
+const GOOGLE_REQUEST_TIMEOUT_MS = 5_000;
 
 // Metrics the priority cards need: how often the listing surfaced and how often
 // someone acted on it.
@@ -88,7 +89,8 @@ export async function listAnalyticsProperties(
     url.searchParams.set("pageSize", "200");
     if (pageToken !== undefined) url.searchParams.set("pageToken", pageToken);
     const response = await fetchImpl(url, {
-      headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" }
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
+      signal: AbortSignal.timeout(GOOGLE_REQUEST_TIMEOUT_MS)
     });
     if (!response.ok) {
       throw new Error(
@@ -140,7 +142,8 @@ export async function runAnalyticsReport(
       metrics: Object.keys(GA4_METRIC_NAMES).map((name) => ({ name })),
       limit: "250000",
       returnPropertyQuota: true
-    })
+    }),
+    signal: AbortSignal.timeout(GOOGLE_REQUEST_TIMEOUT_MS)
   });
   if (!response.ok) {
     throw new Error(`Google Analytics report failed with status ${response.status.toString()}`);
@@ -272,7 +275,8 @@ export async function querySearchAnalytics(input: {
         endDate: isoDate(input.end),
         dimensions: dimensions_,
         rowLimit: input.rowLimit ?? 5000
-      })
+      }),
+      signal: AbortSignal.timeout(GOOGLE_REQUEST_TIMEOUT_MS)
     }
   );
   if (!response.ok) {
@@ -429,7 +433,8 @@ export async function replyToReview(input: {
       Authorization: `Bearer ${input.accessToken}`,
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({ comment: input.comment })
+    body: JSON.stringify({ comment: input.comment }),
+    signal: AbortSignal.timeout(GOOGLE_REQUEST_TIMEOUT_MS)
   });
   if (!response.ok) {
     throw new Error(`Google review reply failed with status ${response.status.toString()}`);
@@ -457,7 +462,8 @@ interface MultiDailyMetricsResponse {
 
 async function getJson<T>(url: string, accessToken: string): Promise<T> {
   const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" }
+    headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
+    signal: AbortSignal.timeout(GOOGLE_REQUEST_TIMEOUT_MS)
   });
   if (!response.ok) {
     throw new Error(`Google request to ${url} failed with status ${response.status.toString()}`);

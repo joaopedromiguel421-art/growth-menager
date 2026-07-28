@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 export const metadata: Metadata = { title: "Política de privacidade" };
 
@@ -48,9 +49,9 @@ export default function PrivacyPage(): React.ReactNode {
           tratados e comunicados conforme a lei. Dúvidas podem ser enviadas ao mesmo e-mail acima.
         </p>
         <nav className="legal-links" aria-label="Links institucionais">
-          <a href="/sobre">Sobre</a>
-          <a href="/termos">Termos de uso</a>
-          <a href="/login">Entrar</a>
+          <Link href="/sobre">Sobre</Link>
+          <Link href="/termos">Termos de uso</Link>
+          <Link href="/login">Entrar</Link>
         </nav>
       </article>
     </main>

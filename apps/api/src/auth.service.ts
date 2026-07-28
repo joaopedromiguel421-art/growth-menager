@@ -17,10 +17,11 @@ export class AuthorizationService {
     readonly traceId: string;
   }): Promise<TenantContext> {
     return this.client.database.transaction(async (transaction) => {
-      await transaction.execute(
-        sql`select set_config('app.auth_user_id', ${input.authUserId}, true)`
-      );
-      await transaction.execute(sql`select set_config('app.tenant_id', ${input.tenantId}, true)`);
+      await transaction.execute(sql`
+        select
+          set_config('app.auth_user_id', ${input.authUserId}, true),
+          set_config('app.tenant_id', ${input.tenantId}, true)
+      `);
 
       const records = await transaction
         .select({

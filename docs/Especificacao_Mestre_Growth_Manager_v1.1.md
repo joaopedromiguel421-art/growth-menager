@@ -1967,6 +1967,15 @@ Direção “clareza operacional”: profissional, discreta, densa sem ser apert
 - **Inputs/selects:** label persistente, ajuda, erro associado, altura 40/44 px; placeholder nunca substitui label.
 - **Modais:** usados para confirmação curta; fluxos longos usam página/drawer. Escape cancela quando seguro.
 - **Tabelas:** header fixo opcional, densidade confortável, seleção clara; em mobile usam cards ou scroll interno rotulado.
+
+### 14.4 Performance percebida e movimento
+
+- Rotas autenticadas dinâmicas exibem shell e skeleton estáveis imediatamente; navegação interna preserva layouts compartilhados e pode ser interrompida sem recarregar o documento.
+- Dashboard, conexões e monitoramento SEO usam streaming/Suspense para que uma fonte lenta não bloqueie o restante da tela.
+- Ações assíncronas preservam a largura do controle, anunciam progresso com `aria-live`, bloqueiam envio duplicado e mantêm erro recuperável próximo ao acionador.
+- Movimento é não essencial, limitado a `transform` e `opacity`, com duração entre 180 e 280 ms. Stagger termina em até 240 ms e animação contínua só é permitida durante loading.
+- `prefers-reduced-motion: reduce` remove animação, shimmer e deslocamento sem retirar informação ou feedback de estado.
+- Dados autenticados permanecem `private` e tenant-scoped. Snapshot de dashboard pode ter TTL máximo de 60 s com invalidação após mutation; candidatos de propriedades externas podem ter TTL de 15 min com refresh explícito.
 - **Cards:** título, estado, corpo e ação; nenhum card clicável contém controles aninhados ambíguos.
 - **Badges:** sempre texto + ícone opcional; cores por estado.
 - **Abas:** até seis; além disso usar navegação lateral.
@@ -3707,7 +3716,7 @@ Os dados são factories determinísticas com tenant A/B, papéis, relógio conge
 | TEST-036 | offline durante form/mutation e clique repetido | draft local seguro, nenhum write fantasma | componente+E2E / P1 | automático; RF-039 |
 | TEST-037 | preferências e notificações P0/P3/bounce | críticos entregues, opt-out respeitado, fallback in-app | integração / P1 | automático; RF-031 |
 | TEST-038 | navegação teclado, NVDA/VoiceOver, zoom, contraste, gráficos | A11Y-001–007 aprovados | a11y / P0 | axe automático + manual release; seção 16 |
-| TEST-039 | 500 usuários, 100 RPS, 50k sync, relatório grande | NFR-001–009/017–021 atendidos | performance / P0 | k6/Lighthouse release |
+| TEST-039 | 500 usuários, 100 RPS, 50k sync, relatório grande; Lighthouse mobile, navegação autenticada e bundle gzip | NFR-001–009/017–021 atendidos; shell ≤1,5 s, dados ≤3 s, LCP/INP/CLS e bundle dentro do orçamento | performance / P0 | k6/Lighthouse/Playwright release; relatório guarda cenário, commit e p50/p75/p95 |
 | TEST-040 | failover DB, provider down, fila parada e backlog | degradação/RPO/RTO/recovery conforme NFR | resiliência / P0 | homologação mensal |
 | TEST-041 | migration expand/migrate/contract com versão N e N-1 | deploy/rollback sem perda/lock >5 s | migration / P0 | automático + staging |
 | TEST-042 | snapshot backup restaurado e checks de integridade | RPO/RTO, counts/hashes/RLS válidos | disaster recovery / P0 | trimestral |

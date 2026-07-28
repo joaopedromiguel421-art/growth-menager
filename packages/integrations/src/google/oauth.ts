@@ -3,6 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 const AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 const REVOKE_ENDPOINT = "https://oauth2.googleapis.com/revoke";
+const GOOGLE_REQUEST_TIMEOUT_MS = 5_000;
 
 export type GoogleProvider = "google_business" | "search_console" | "ga4";
 
@@ -94,7 +95,8 @@ export async function revokeToken(token: string): Promise<void> {
   await fetch(REVOKE_ENDPOINT, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ token }).toString()
+    body: new URLSearchParams({ token }).toString(),
+    signal: AbortSignal.timeout(GOOGLE_REQUEST_TIMEOUT_MS)
   });
 }
 
@@ -102,7 +104,8 @@ async function tokenRequest(params: Readonly<Record<string, string>>): Promise<G
   const response = await fetch(TOKEN_ENDPOINT, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams(params).toString()
+    body: new URLSearchParams(params).toString(),
+    signal: AbortSignal.timeout(GOOGLE_REQUEST_TIMEOUT_MS)
   });
 
   const body: unknown = await response.json().catch(() => null);

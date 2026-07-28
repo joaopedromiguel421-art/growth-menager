@@ -20,6 +20,7 @@ import {
   type Provider
 } from "@growth-manager/contracts";
 import { DomainError, type TenantContext } from "@growth-manager/domain";
+import { DashboardCacheService } from "./dashboard-cache.service.js";
 import { requireIdempotencyKey } from "./idempotency.js";
 import { IntegrationsService } from "./integrations.service.js";
 import { Public } from "./public.decorator.js";
@@ -33,7 +34,10 @@ interface RedirectResponse {
 @ApiBearerAuth()
 @Controller("v1")
 export class IntegrationsController {
-  public constructor(private readonly integrations: IntegrationsService) {}
+  public constructor(
+    private readonly integrations: IntegrationsService,
+    private readonly dashboardCache: DashboardCacheService
+  ) {}
 
   @Get("tenants/:tenantId/integrations")
   public list(@Req() request: AuthenticatedRequest): Promise<unknown> {
@@ -41,16 +45,19 @@ export class IntegrationsController {
   }
 
   @Post("tenants/:tenantId/integrations/:provider/authorize")
-  public authorize(
+  public async authorize(
     @Req() request: AuthenticatedRequest,
     @Param("provider") provider: string,
     @Body() body: unknown
   ): Promise<unknown> {
-    return this.integrations.authorize(
-      this.context(request),
+    const context = this.context(request);
+    const result = await this.integrations.authorize(
+      context,
       this.provider(provider),
       authorizeRequestSchema.parse(body ?? {})
     );
+    this.dashboardCache.invalidate(context.tenantId);
+    return result;
   }
 
   /**
@@ -73,6 +80,7 @@ export class IntegrationsController {
       throw new DomainError("GM-OAUTH-CALLBACK-INVALID", "Retorno de autorização inválido.", false);
     }
     const result = await this.integrations.callback(this.provider(provider), code, state);
+    this.dashboardCache.invalidate(result.tenantId);
     response.redirect(result.redirectUrl);
   }
 
@@ -97,9 +105,17 @@ export class IntegrationsController {
     );
   }
 
+  @Post("tenants/:tenantId/integrations/:provider/properties/refresh")
+  public refreshProperties(
+    @Req() request: AuthenticatedRequest,
+    @Param("provider") provider: string
+  ): Promise<unknown> {
+    return this.integrations.refreshProperties(this.context(request), this.provider(provider));
+  }
+
   @Delete("tenants/:tenantId/integrations/:provider")
   @HttpCode(204)
-  public disconnect(
+  public async disconnect(
     @Req() request: AuthenticatedRequest,
     @Param("provider") provider: string
   ): Promise<void> {
@@ -110,20 +126,25 @@ export class IntegrationsController {
         false
       );
     }
-    return this.integrations.disconnect(this.context(request), this.provider(provider));
+    const context = this.context(request);
+    await this.integrations.disconnect(context, this.provider(provider));
+    this.dashboardCache.invalidate(context.tenantId);
   }
 
   @Post("tenants/:tenantId/integrations/:provider/syncs")
-  public requestSync(
+  public async requestSync(
     @Req() request: AuthenticatedRequest,
     @Param("provider") provider: string,
     @Headers("idempotency-key") idempotencyKey: string | undefined
   ): Promise<unknown> {
-    return this.integrations.requestSync(
-      this.context(request),
+    const context = this.context(request);
+    const result = await this.integrations.requestSync(
+      context,
       this.provider(provider),
       requireIdempotencyKey(idempotencyKey)
     );
+    this.dashboardCache.invalidate(context.tenantId);
+    return result;
   }
 
   @Get("tenants/:tenantId/syncs/:jobId")
@@ -148,5 +169,4 @@ export class IntegrationsController {
     }
     return request.tenantContext;
   }
-
 }

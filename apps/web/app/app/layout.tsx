@@ -1,5 +1,8 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { Navigation } from "../../components/navigation";
+import { AppShellSkeleton } from "../../components/loading-ui";
+import { SubmitButton } from "../../components/submit-button";
 import { WorkspaceError } from "../../components/workspace-error";
 import { loadWorkspace } from "../../lib/session";
 import { signOutAction } from "./actions";
@@ -8,7 +11,17 @@ import { signOutAction } from "./actions";
 // demand, never prerendered or cached at the edge.
 export const dynamic = "force-dynamic";
 
-export default async function ApplicationLayout({
+export default function ApplicationLayout({
+  children
+}: Readonly<{ children: React.ReactNode }>): React.ReactNode {
+  return (
+    <Suspense fallback={<AppShellSkeleton />}>
+      <AuthenticatedShell>{children}</AuthenticatedShell>
+    </Suspense>
+  );
+}
+
+async function AuthenticatedShell({
   children
 }: Readonly<{ children: React.ReactNode }>): Promise<React.ReactNode> {
   const result = await loadWorkspace();
@@ -36,9 +49,9 @@ export default async function ApplicationLayout({
               <span className="muted">{workspace.session.user.email}</span>
             )}
             <form action={signOutAction}>
-              <button className="tertiary-button" type="submit">
+              <SubmitButton className="tertiary-button" pendingLabel="Saindo…">
                 Sair
-              </button>
+              </SubmitButton>
             </form>
           </div>
         </header>

@@ -1,12 +1,13 @@
 "use client";
 
 import { useActionState } from "react";
+import { SubmitButton } from "../../components/submit-button";
 import { acceptInvitationAction, type AcceptState } from "./actions";
 
 const initialState: AcceptState = { error: null };
 
 export function AcceptForm({ token }: { readonly token: string }): React.ReactNode {
-  const [state, action, pending] = useActionState(acceptInvitationAction, initialState);
+  const [state, action] = useActionState(acceptInvitationAction, initialState);
 
   return (
     <form action={action} className="task-form">
@@ -47,9 +48,9 @@ export function AcceptForm({ token }: { readonly token: string }): React.ReactNo
         </p>
       )}
 
-      <button className="primary-button" disabled={pending} type="submit">
-        {pending ? "Ativando…" : "Ativar meu acesso"}
-      </button>
+      <SubmitButton className="primary-button" pendingLabel="Ativando…">
+        Ativar meu acesso
+      </SubmitButton>
     </form>
   );
 }

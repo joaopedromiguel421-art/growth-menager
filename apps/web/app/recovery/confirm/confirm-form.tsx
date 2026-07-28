@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { Button } from "@growth-manager/ui";
 
@@ -68,7 +69,7 @@ export function ConfirmForm({
   if (status === "invalid") {
     return (
       <p className="form-error" role="alert">
-        Link expirado ou inválido. <a href="/recovery">Solicite um novo link</a>.
+        Link expirado ou inválido. <Link href="/recovery">Solicite um novo link</Link>.
       </p>
     );
   }

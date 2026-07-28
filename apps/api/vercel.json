@@ -1,12 +1,12 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "fluid": true,
   "regions": ["gru1"],
   "outputDirectory": "public",
   "buildCommand": "pnpm turbo run build --filter=@growth-manager/api",
   "functions": {
     "api/index.ts": {
-      "maxDuration": 300,
-      "memory": 2048
+      "maxDuration": 300
     }
   },
   "rewrites": [

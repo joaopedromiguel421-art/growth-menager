@@ -6,6 +6,8 @@ dist/
 coverage/
 playwright-report/
 test-results/
+.lighthouseci/
+.lighthouse-temp/
 .vercel/
 .supabase/
 supabase/.temp/
@@ -18,6 +20,7 @@ supabase/.temp/
 .DS_Store
 Thumbs.db
 MazyOS/
+apps/api/public/openapi.json
 
 .vercel
 .env*

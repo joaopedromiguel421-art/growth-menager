@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { Button } from "@growth-manager/ui";
+import { SubmitButton } from "../../../components/submit-button";
 import { confirmStepUpAction, type StepUpState } from "./actions";
 
 const initialState: StepUpState = { error: null };
@@ -15,7 +15,7 @@ export function StepUpForm({
   readonly factorId: string;
   readonly returnTo: string;
 }): React.ReactNode {
-  const [state, action, pending] = useActionState(confirmStepUpAction, initialState);
+  const [state, action] = useActionState(confirmStepUpAction, initialState);
 
   return (
     <form action={action} className="login-form">
@@ -39,9 +39,7 @@ export function StepUpForm({
           {state.error}
         </p>
       )}
-      <Button type="submit" disabled={pending}>
-        {pending ? "Confirmando…" : actionLabel}
-      </Button>
+      <SubmitButton pendingLabel="Confirmando…">{actionLabel}</SubmitButton>
     </form>
   );
 }

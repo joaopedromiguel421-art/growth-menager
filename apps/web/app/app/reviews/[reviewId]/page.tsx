@@ -1,8 +1,10 @@
 import { Badge, Card } from "@growth-manager/ui";
+import Link from "next/link";
 import type { Review, ReviewReply } from "@growth-manager/contracts";
 import { getReview } from "../../../../lib/api";
 import { loadWorkspace } from "../../../../lib/session";
 import { NoTenantState, WorkspaceError } from "../../../../components/workspace-error";
+import { SubmitButton } from "../../../../components/submit-button";
 import { createDraftAction, submitForApprovalAction } from "../actions";
 import { ReplyDraftForm } from "./reply-draft-form";
 
@@ -27,9 +29,9 @@ function GenerateDraftButton({
   return (
     <form action={createDraftAction}>
       <input name="review_id" type="hidden" value={reviewId} />
-      <button className="primary-button" type="submit">
+      <SubmitButton className="primary-button" pendingLabel="Gerando…">
         {label}
-      </button>
+      </SubmitButton>
     </form>
   );
 }
@@ -53,15 +55,15 @@ function DraftReplyEditor({
         <form action={submitForApprovalAction}>
           <input name="review_id" type="hidden" value={review.id} />
           <input name="reply_id" type="hidden" value={reply.id} />
-          <button className="primary-button" type="submit">
+          <SubmitButton className="primary-button" pendingLabel="Enviando…">
             Solicitar aprovação
-          </button>
+          </SubmitButton>
         </form>
         <form action={createDraftAction}>
           <input name="review_id" type="hidden" value={review.id} />
-          <button className="tertiary-button" type="submit">
+          <SubmitButton className="tertiary-button" pendingLabel="Gerando…">
             Gerar nova sugestão
-          </button>
+          </SubmitButton>
         </form>
       </div>
     </>
@@ -72,7 +74,7 @@ function ReplyStatusNote({ status }: { readonly status: ReviewReply["status"] })
   if (status === "awaiting_approval") {
     return (
       <p className="muted">
-        Enviado para aprovação. <a href="/app/approvals">Decidir em Aprovações</a>
+        Enviado para aprovação. <Link href="/app/approvals">Decidir em Aprovações</Link>
       </p>
     );
   }

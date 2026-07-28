@@ -9,13 +9,17 @@ import {
 import { DomainError, type TenantContext } from "@growth-manager/domain";
 import { requireIdempotencyKey } from "./idempotency.js";
 import type { AuthenticatedRequest } from "./request-context.js";
+import { DashboardCacheService } from "./dashboard-cache.service.js";
 import { WorkService } from "./work.service.js";
 
 @ApiTags("work")
 @ApiBearerAuth()
 @Controller("v1/tenants/:tenantId")
 export class WorkController {
-  public constructor(private readonly work: WorkService) {}
+  public constructor(
+    private readonly work: WorkService,
+    private readonly dashboardCache: DashboardCacheService
+  ) {}
 
   @Get("recommendations")
   public listRecommendations(@Req() request: AuthenticatedRequest): Promise<unknown> {
@@ -29,11 +33,15 @@ export class WorkController {
     @Headers("idempotency-key") idempotencyKey: string | undefined,
     @Body() body: unknown
   ): Promise<unknown> {
-    return this.work.decideRecommendation(
-      this.context(request),
-      recommendationId,
-      requireIdempotencyKey(idempotencyKey),
-      recommendationDecisionSchema.parse(body)
+    const context = this.context(request);
+    return this.afterMutation(
+      context,
+      this.work.decideRecommendation(
+        context,
+        recommendationId,
+        requireIdempotencyKey(idempotencyKey),
+        recommendationDecisionSchema.parse(body)
+      )
     );
   }
 
@@ -48,10 +56,14 @@ export class WorkController {
     @Headers("idempotency-key") idempotencyKey: string | undefined,
     @Body() body: unknown
   ): Promise<unknown> {
-    return this.work.createTask(
-      this.context(request),
-      requireIdempotencyKey(idempotencyKey),
-      taskCreateSchema.parse(body)
+    const context = this.context(request);
+    return this.afterMutation(
+      context,
+      this.work.createTask(
+        context,
+        requireIdempotencyKey(idempotencyKey),
+        taskCreateSchema.parse(body)
+      )
     );
   }
 
@@ -62,11 +74,15 @@ export class WorkController {
     @Headers("idempotency-key") idempotencyKey: string | undefined,
     @Body() body: unknown
   ): Promise<unknown> {
-    return this.work.updateTask(
-      this.context(request),
-      taskId,
-      requireIdempotencyKey(idempotencyKey),
-      taskUpdateSchema.parse(body)
+    const context = this.context(request);
+    return this.afterMutation(
+      context,
+      this.work.updateTask(
+        context,
+        taskId,
+        requireIdempotencyKey(idempotencyKey),
+        taskUpdateSchema.parse(body)
+      )
     );
   }
 
@@ -85,11 +101,15 @@ export class WorkController {
     if (request.authAal !== "aal2") {
       throw new DomainError("GM-AUTH-MFA-REQUIRED", "Confirme o MFA para decidir.", false);
     }
-    return this.work.decideApproval(
-      this.context(request),
-      approvalId,
-      requireIdempotencyKey(idempotencyKey),
-      approvalDecisionSchema.parse(body)
+    const context = this.context(request);
+    return this.afterMutation(
+      context,
+      this.work.decideApproval(
+        context,
+        approvalId,
+        requireIdempotencyKey(idempotencyKey),
+        approvalDecisionSchema.parse(body)
+      )
     );
   }
 
@@ -100,4 +120,9 @@ export class WorkController {
     return request.tenantContext;
   }
 
+  private async afterMutation<T>(context: TenantContext, mutation: Promise<T>): Promise<T> {
+    const result = await mutation;
+    this.dashboardCache.invalidate(context.tenantId);
+    return result;
+  }
 }

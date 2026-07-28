@@ -1,8 +1,12 @@
+import { Suspense } from "react";
 import { Badge, Card, EmptyState } from "@growth-manager/ui";
+import Link from "next/link";
 import type { Dashboard, Recommendation, SessionTenant } from "@growth-manager/contracts";
 import { getDashboard } from "../../lib/api";
 import { loadWorkspace } from "../../lib/session";
 import { NoTenantState, WorkspaceError } from "../../components/workspace-error";
+import { SubmitButton } from "../../components/submit-button";
+import { DashboardContentSkeleton } from "../../components/loading-ui";
 import { decideRecommendationAction } from "./actions";
 
 const riskTone = {
@@ -70,16 +74,16 @@ function PriorityCard({
           <form action={decideRecommendationAction}>
             <input name="recommendation_id" type="hidden" value={recommendation.id} />
             <input name="decision" type="hidden" value="accepted" />
-            <button className="primary-button" type="submit">
+            <SubmitButton className="primary-button" pendingLabel="Aceitando…">
               Aceitar e criar tarefa
-            </button>
+            </SubmitButton>
           </form>
           <form action={decideRecommendationAction}>
             <input name="recommendation_id" type="hidden" value={recommendation.id} />
             <input name="decision" type="hidden" value="dismissed" />
-            <button className="tertiary-button" type="submit">
+            <SubmitButton className="tertiary-button" pendingLabel="Descartando…">
               Descartar
-            </button>
+            </SubmitButton>
           </form>
         </div>
       ) : null}
@@ -158,7 +162,7 @@ function ApprovalsCard({
           <p className="eyebrow">Aguardando decisão</p>
           <h2>Aprovações</h2>
         </div>
-        <a href="/app/approvals">Ver todas</a>
+        <Link href="/app/approvals">Ver todas</Link>
       </div>
       {dashboard.approvals.length === 0 ? (
         <p className="muted">Nenhuma aprovação pendente.</p>
@@ -194,7 +198,7 @@ function TasksCard({
           <p className="eyebrow">Próximos passos</p>
           <h2>Tarefas críticas</h2>
         </div>
-        <a href="/app/tasks">Abrir quadro</a>
+        <Link href="/app/tasks">Abrir quadro</Link>
       </div>
       {dashboard.tasks.length === 0 ? (
         <p className="muted">Nenhuma tarefa em aberto.</p>
@@ -223,7 +227,7 @@ function SourcesCard({ dashboard }: { readonly dashboard: Dashboard }): React.Re
           <p className="eyebrow">Qualidade do sinal</p>
           <h2>Saúde das fontes</h2>
         </div>
-        <a href="/app/connections">Gerenciar</a>
+        <Link href="/app/connections">Gerenciar</Link>
       </div>
       {dashboard.sources.length === 0 ? (
         <p className="muted">Nenhuma fonte de dados conectada a este cliente.</p>
@@ -266,6 +270,28 @@ export default async function DashboardPage(): Promise<React.ReactNode> {
   const tenant: SessionTenant | null = result.workspace.activeTenant;
   if (tenant === null) return <NoTenantState email={result.workspace.session.user.email} />;
 
+  return (
+    <main className="page">
+      <div className="page-heading">
+        <div>
+          <p className="eyebrow">{formatToday(tenant.timezone)}</p>
+          <h1>O que merece atenção agora</h1>
+          <p>Prioridades ordenadas por impacto, urgência e confiança dos dados.</p>
+        </div>
+      </div>
+
+      <Suspense fallback={<DashboardContentSkeleton />}>
+        <DashboardContent tenant={tenant} />
+      </Suspense>
+    </main>
+  );
+}
+
+async function DashboardContent({
+  tenant
+}: {
+  readonly tenant: SessionTenant;
+}): Promise<React.ReactNode> {
   const dashboardResult = await getDashboard(tenant.id);
   if (!dashboardResult.ok) return <WorkspaceError failure={dashboardResult} />;
 
@@ -279,17 +305,8 @@ export default async function DashboardPage(): Promise<React.ReactNode> {
     dashboard.sources.length === 0;
 
   return (
-    <main className="page">
-      <div className="page-heading">
-        <div>
-          <p className="eyebrow">{formatToday(tenant.timezone)}</p>
-          <h1>O que merece atenção agora</h1>
-          <p>Prioridades ordenadas por impacto, urgência e confiança dos dados.</p>
-        </div>
-      </div>
-
+    <>
       <SignalStrip dashboard={dashboard} timezone={tenant.timezone} />
-
       {everythingEmpty ? (
         <Card>
           <EmptyState
@@ -298,18 +315,16 @@ export default async function DashboardPage(): Promise<React.ReactNode> {
           />
         </Card>
       ) : null}
-
       <div className="dashboard-grid">
         {topRecommendation === undefined ? (
           <NoRecommendationCard />
         ) : (
           <PriorityCard canDecide={canDecide} recommendation={topRecommendation} />
         )}
-
         <ApprovalsCard dashboard={dashboard} timezone={tenant.timezone} />
         <TasksCard dashboard={dashboard} timezone={tenant.timezone} />
         <SourcesCard dashboard={dashboard} />
       </div>
-    </main>
+    </>
   );
 }

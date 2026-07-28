@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { Card } from "@growth-manager/ui";
+import { SubmitButton } from "../../../components/submit-button";
 import { createClientAction, type ActionState } from "../actions";
 
 const initialState: ActionState = { error: null };
@@ -34,7 +35,7 @@ export function ClientForm({
 }: {
   readonly organizations: readonly OrganizationOption[];
 }): React.ReactNode {
-  const [state, action, pending] = useActionState(createClientAction, initialState);
+  const [state, action] = useActionState(createClientAction, initialState);
   const [organizationId, setOrganizationId] = useState(organizations[0]?.id ?? "new");
   const creatingOrganization = organizationId === "new";
 
@@ -125,9 +126,9 @@ export function ClientForm({
           </p>
         )}
 
-        <button className="primary-button" disabled={pending} type="submit">
-          {pending ? "Criando…" : "Criar cliente"}
-        </button>
+        <SubmitButton className="primary-button" pendingLabel="Criando…">
+          Criar cliente
+        </SubmitButton>
       </form>
     </Card>
   );

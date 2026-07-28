@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { Button } from "@growth-manager/ui";
+import { SubmitButton } from "../../../../components/submit-button";
 import { updateDraftAction, type UpdateDraftState } from "../actions";
 
 const initialState: UpdateDraftState = { error: null };
@@ -15,7 +15,7 @@ export function ReplyDraftForm({
   readonly replyId: string;
   readonly initialBody: string;
 }): React.ReactNode {
-  const [state, action, pending] = useActionState(updateDraftAction, initialState);
+  const [state, action] = useActionState(updateDraftAction, initialState);
 
   return (
     <form action={action}>
@@ -30,9 +30,7 @@ export function ReplyDraftForm({
           {state.error}
         </p>
       )}
-      <Button type="submit" disabled={pending}>
-        {pending ? "Salvando…" : "Salvar edição"}
-      </Button>
+      <SubmitButton pendingLabel="Salvando…">Salvar edição</SubmitButton>
     </form>
   );
 }

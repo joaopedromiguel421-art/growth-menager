@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { ConfirmForm } from "./confirm-form";
 
 export const metadata: Metadata = { title: "Definir nova senha" };
@@ -10,10 +11,10 @@ export default function RecoveryConfirmPage(): React.ReactNode {
   return (
     <main className="login-page">
       <section className="login-brand">
-        <a className="brand brand--light" href="/" aria-label="Growth Manager">
+        <Link className="brand brand--light" href="/" aria-label="Growth Manager">
           <span className="brand__mark">G</span>
           <span>Growth Manager</span>
-        </a>
+        </Link>
         <div className="login-brand__message">
           <p className="eyebrow eyebrow--light">Acesso seguro</p>
           <h1>Defina uma nova senha.</h1>

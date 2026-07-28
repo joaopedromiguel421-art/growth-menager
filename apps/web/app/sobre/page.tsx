@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Sobre",
@@ -30,9 +31,9 @@ export default function AboutPage(): React.ReactNode {
           explícito.
         </p>
         <nav className="legal-links" aria-label="Links institucionais">
-          <a href="/login">Entrar</a>
-          <a href="/privacidade">Política de privacidade</a>
-          <a href="/termos">Termos de uso</a>
+          <Link href="/login">Entrar</Link>
+          <Link href="/privacidade">Política de privacidade</Link>
+          <Link href="/termos">Termos de uso</Link>
         </nav>
       </article>
     </main>

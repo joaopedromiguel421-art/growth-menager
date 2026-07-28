@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node scripts/generate-openapi.mjs",
     "clean": "rimraf dist",
     "dev": "tsx watch src/main.ts",
     "lint": "eslint src api",
@@ -37,5 +37,8 @@
     "reflect-metadata": "catalog:",
     "rxjs": "catalog:",
     "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@growth-manager/test-kit": "workspace:*"
   }
 }

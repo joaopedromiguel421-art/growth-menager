@@ -1,8 +1,11 @@
+import { Suspense } from "react";
 import { Badge, Card, EmptyState } from "@growth-manager/ui";
-import type { SeoAnalysisRun, SeoFinding } from "@growth-manager/contracts";
+import Link from "next/link";
+import type { SeoAnalysisRun, SeoFinding, SeoTarget } from "@growth-manager/contracts";
 import { getSeoBaseline, listSeoFindings, listSeoHistory, listSeoTargets } from "../../../lib/api";
 import { loadWorkspace } from "../../../lib/session";
 import { NoTenantState, WorkspaceError } from "../../../components/workspace-error";
+import { SubmitButton } from "../../../components/submit-button";
 import { createSeoTargetAction, runSeoAnalysisAction } from "./actions";
 
 const severityTone = {
@@ -72,22 +75,9 @@ export default async function SeoPage({
   if (!targets.ok) return <WorkspaceError failure={targets} />;
   const selectedId = typeof params.target === "string" ? params.target : targets.data[0]?.id;
   const selected = targets.data.find((target) => target.id === selectedId);
-  const detail =
-    selected === undefined
-      ? null
-      : await Promise.all([
-          listSeoFindings(tenant.id),
-          listSeoHistory(tenant.id, selected.id),
-          getSeoBaseline(tenant.id, selected.id)
-        ]);
   const error = typeof params.error === "string" ? params.error : null;
   const canManage = tenant.permissions.includes("seo.manage");
   const canRun = tenant.permissions.includes("seo.run");
-  const findings = detail?.[0].ok
-    ? detail[0].data.filter((finding) => finding.target_id === selected?.id)
-    : [];
-  const history = detail?.[1].ok ? detail[1].data : [];
-  const baseline = detail?.[2].ok ? detail[2].data : null;
 
   return (
     <main className="page">
@@ -117,9 +107,9 @@ export default async function SeoPage({
                 required
                 type="url"
               />
-              <button className="primary-button" type="submit">
+              <SubmitButton className="primary-button" pendingLabel="Adicionando…">
                 Monitorar site
-              </button>
+              </SubmitButton>
             </div>
           </form>
         </Card>
@@ -135,72 +125,109 @@ export default async function SeoPage({
         <Card>
           <div className="card-actions">
             {targets.data.map((target) => (
-              <a className="tertiary-button" href={`/app/seo?target=${target.id}`} key={target.id}>
+              <Link
+                className="tertiary-button"
+                href={`/app/seo?target=${target.id}`}
+                key={target.id}
+              >
                 {target.normalized_origin}
-              </a>
+              </Link>
             ))}
           </div>
         </Card>
       )}
       {selected === undefined ? null : (
-        <>
-          <Card>
-            <div className="card-heading">
-              <div>
-                <p className="eyebrow">Site ativo</p>
-                <h2>{selected.normalized_origin}</h2>
-              </div>
-              <Badge tone={selected.status === "active" ? "success" : "neutral"}>
-                {selected.status}
-              </Badge>
-            </div>
-            <p className="muted">
-              Baseline:{" "}
-              {baseline === null
-                ? "ainda não criado"
-                : `${baseline.status} (${String(Math.round(baseline.coverage * 100))}%)`}
-            </p>
-            {canRun ? (
-              <form action={runSeoAnalysisAction}>
-                <input name="target_id" type="hidden" value={selected.id} />
-                <button className="primary-button" type="submit">
-                  Executar análise
-                </button>
-              </form>
-            ) : null}
-          </Card>
-          <section>
-            <h2>Achados</h2>
-            <div className="dashboard-grid">
-              {findings.length > 0 ? (
-                findings.map((finding) => <FindingCard finding={finding} key={finding.id} />)
-              ) : (
-                <Card>
-                  <EmptyState
-                    title="Sem achados"
-                    description="Execute a primeira análise para coletar evidências."
-                  />
-                </Card>
-              )}
-            </div>
-          </section>
-          <section>
-            <h2>Histórico</h2>
-            <div className="dashboard-grid">
-              {history.length > 0 ? (
-                history.map((run) => <RunCard key={run.id} run={run} />)
-              ) : (
-                <Card>
-                  <EmptyState
-                    title="Sem execuções"
-                    description="O histórico aparecerá após a primeira análise."
-                  />
-                </Card>
-              )}
-            </div>
-          </section>
-        </>
+        <Suspense
+          fallback={
+            <Card className="skeleton-card">
+              <p className="muted">Carregando detalhes do monitoramento…</p>
+            </Card>
+          }
+        >
+          <SeoDetail canRun={canRun} selected={selected} tenantId={tenant.id} />
+        </Suspense>
       )}
     </main>
+  );
+}
+
+async function SeoDetail({
+  tenantId,
+  selected,
+  canRun
+}: {
+  readonly tenantId: string;
+  readonly selected: SeoTarget;
+  readonly canRun: boolean;
+}): Promise<React.ReactNode> {
+  const detail = await Promise.all([
+    listSeoFindings(tenantId),
+    listSeoHistory(tenantId, selected.id),
+    getSeoBaseline(tenantId, selected.id)
+  ]);
+  const findings = detail[0].ok
+    ? detail[0].data.filter((finding) => finding.target_id === selected.id)
+    : [];
+  const history = detail[1].ok ? detail[1].data : [];
+  const baseline = detail[2].ok ? detail[2].data : null;
+
+  return (
+    <>
+      <Card>
+        <div className="card-heading">
+          <div>
+            <p className="eyebrow">Site ativo</p>
+            <h2>{selected.normalized_origin}</h2>
+          </div>
+          <Badge tone={selected.status === "active" ? "success" : "neutral"}>
+            {selected.status}
+          </Badge>
+        </div>
+        <p className="muted">
+          Baseline:{" "}
+          {baseline === null
+            ? "ainda não criado"
+            : `${baseline.status} (${String(Math.round(baseline.coverage * 100))}%)`}
+        </p>
+        {canRun ? (
+          <form action={runSeoAnalysisAction}>
+            <input name="target_id" type="hidden" value={selected.id} />
+            <SubmitButton className="primary-button" pendingLabel="Iniciando…">
+              Executar análise
+            </SubmitButton>
+          </form>
+        ) : null}
+      </Card>
+      <section>
+        <h2>Achados</h2>
+        <div className="dashboard-grid">
+          {findings.length > 0 ? (
+            findings.map((finding) => <FindingCard finding={finding} key={finding.id} />)
+          ) : (
+            <Card>
+              <EmptyState
+                title="Sem achados"
+                description="Execute a primeira análise para coletar evidências."
+              />
+            </Card>
+          )}
+        </div>
+      </section>
+      <section>
+        <h2>Histórico</h2>
+        <div className="dashboard-grid">
+          {history.length > 0 ? (
+            history.map((run) => <RunCard key={run.id} run={run} />)
+          ) : (
+            <Card>
+              <EmptyState
+                title="Sem execuções"
+                description="O histórico aparecerá após a primeira análise."
+              />
+            </Card>
+          )}
+        </div>
+      </section>
+    </>
   );
 }

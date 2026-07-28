@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { AcceptForm } from "./accept-form";
 
 export const metadata: Metadata = { title: "Aceitar convite" };
@@ -15,10 +16,10 @@ export default async function InvitePage({
   return (
     <main className="login-page">
       <section className="login-brand">
-        <a className="brand brand--light" href="/" aria-label="Growth Manager">
+        <Link className="brand brand--light" href="/" aria-label="Growth Manager">
           <span className="brand__mark">G</span>
           <span>Growth Manager</span>
-        </a>
+        </Link>
         <div className="login-brand__message">
           <p className="eyebrow eyebrow--light">Bem-vindo</p>
           <h1>Ative seu acesso para acompanhar o crescimento do cliente.</h1>

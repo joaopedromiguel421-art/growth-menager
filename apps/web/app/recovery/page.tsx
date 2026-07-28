@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { RecoveryForm } from "./recovery-form";
 
 export const metadata: Metadata = { title: "Recuperar acesso" };
@@ -7,10 +8,10 @@ export default function RecoveryPage(): React.ReactNode {
   return (
     <main className="login-page">
       <section className="login-brand">
-        <a className="brand brand--light" href="/" aria-label="Growth Manager">
+        <Link className="brand brand--light" href="/" aria-label="Growth Manager">
           <span className="brand__mark">G</span>
           <span>Growth Manager</span>
-        </a>
+        </Link>
         <div className="login-brand__message">
           <p className="eyebrow eyebrow--light">Acesso seguro</p>
           <h1>Vamos recuperar o acesso à sua conta.</h1>
@@ -24,7 +25,7 @@ export default function RecoveryPage(): React.ReactNode {
           <p className="muted">Você receberá um link de uso único para definir uma nova senha.</p>
           <RecoveryForm />
           <p className="login-help">
-            Lembrou a senha? <a href="/login">Voltar para o login</a>
+            Lembrou a senha? <Link href="/login">Voltar para o login</Link>
           </p>
         </div>
       </section>

@@ -1,4 +1,5 @@
 import { Badge, Card, EmptyState } from "@growth-manager/ui";
+import Link from "next/link";
 import { listReviews } from "../../../lib/api";
 import { loadWorkspace } from "../../../lib/session";
 import { NoTenantState, WorkspaceError } from "../../../components/workspace-error";
@@ -64,7 +65,7 @@ export default async function ReviewsPage(): Promise<React.ReactNode> {
       ) : (
         <Card>
           {reviews.map((review) => (
-            <a className="review-row" href={`/app/reviews/${review.id}`} key={review.id}>
+            <Link className="review-row" href={`/app/reviews/${review.id}`} key={review.id}>
               <div>
                 <strong>{review.author_name ?? "Cliente"}</strong>
                 <small>{review.rating} de 5</small>
@@ -76,7 +77,7 @@ export default async function ReviewsPage(): Promise<React.ReactNode> {
               <Badge tone={replyStatusTone[review.reply_status]}>
                 {replyStatusLabel[review.reply_status]}
               </Badge>
-            </a>
+            </Link>
           ))}
         </Card>
       )}

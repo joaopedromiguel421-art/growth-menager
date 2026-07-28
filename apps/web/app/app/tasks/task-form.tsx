@@ -2,12 +2,13 @@
 
 import { useActionState } from "react";
 import { Card } from "@growth-manager/ui";
+import { SubmitButton } from "../../../components/submit-button";
 import { createTaskAction, type ActionState } from "../actions";
 
 const initialState: ActionState = { error: null };
 
 export function TaskForm(): React.ReactNode {
-  const [state, action, pending] = useActionState(createTaskAction, initialState);
+  const [state, action] = useActionState(createTaskAction, initialState);
 
   return (
     <Card>
@@ -38,9 +39,9 @@ export function TaskForm(): React.ReactNode {
             {state.error}
           </p>
         )}
-        <button className="primary-button" disabled={pending} type="submit">
-          {pending ? "Criando…" : "Criar tarefa"}
-        </button>
+        <SubmitButton className="primary-button" pendingLabel="Criando…">
+          Criar tarefa
+        </SubmitButton>
       </form>
     </Card>
   );

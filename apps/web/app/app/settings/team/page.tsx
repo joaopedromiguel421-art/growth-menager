@@ -2,6 +2,7 @@ import { Badge, Card, EmptyState } from "@growth-manager/ui";
 import { getTeam } from "../../../../lib/api";
 import { loadWorkspace, roleLabel } from "../../../../lib/session";
 import { NoTenantState, WorkspaceError } from "../../../../components/workspace-error";
+import { SubmitButton } from "../../../../components/submit-button";
 import { revokeInvitationAction, revokeMemberAction } from "../../actions";
 import { TeamInviteForm } from "./team-invite-form";
 
@@ -68,9 +69,9 @@ export default async function TeamPage(): Promise<React.ReactNode> {
                 {canManage && member.user_id !== currentUserId && member.status === "active" ? (
                   <form action={revokeMemberAction}>
                     <input name="membership_id" type="hidden" value={member.membership_id} />
-                    <button className="tertiary-button" type="submit">
+                    <SubmitButton className="tertiary-button" pendingLabel="Removendo…">
                       Remover
-                    </button>
+                    </SubmitButton>
                   </form>
                 ) : null}
               </div>
@@ -101,9 +102,9 @@ export default async function TeamPage(): Promise<React.ReactNode> {
                 {canManage ? (
                   <form action={revokeInvitationAction}>
                     <input name="invitation_id" type="hidden" value={invitation.id} />
-                    <button className="tertiary-button" type="submit">
+                    <SubmitButton className="tertiary-button" pendingLabel="Cancelando…">
                       Cancelar
-                    </button>
+                    </SubmitButton>
                   </form>
                 ) : null}
               </div>

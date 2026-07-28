@@ -3,6 +3,7 @@ import type { Task } from "@growth-manager/contracts";
 import { listTasks } from "../../../lib/api";
 import { loadWorkspace } from "../../../lib/session";
 import { NoTenantState, WorkspaceError } from "../../../components/workspace-error";
+import { SubmitButton } from "../../../components/submit-button";
 import { setTaskStatusAction } from "../actions";
 import { TaskForm } from "./task-form";
 
@@ -95,9 +96,9 @@ export default async function TasksPage(): Promise<React.ReactNode> {
                             <input name="task_id" type="hidden" value={task.id} />
                             <input name="version" type="hidden" value={task.version} />
                             <input name="status" type="hidden" value="done" />
-                            <button className="tertiary-button" type="submit">
+                            <SubmitButton className="tertiary-button" pendingLabel="Concluindo…">
                               Concluir
-                            </button>
+                            </SubmitButton>
                           </form>
                         ) : null}
                       </div>

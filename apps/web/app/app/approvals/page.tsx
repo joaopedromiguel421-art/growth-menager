@@ -1,8 +1,10 @@
 import { Badge, Card, EmptyState } from "@growth-manager/ui";
+import Link from "next/link";
 import type { Approval } from "@growth-manager/contracts";
 import { listApprovals } from "../../../lib/api";
 import { loadWorkspace } from "../../../lib/session";
 import { NoTenantState, WorkspaceError } from "../../../components/workspace-error";
+import { SubmitButton } from "../../../components/submit-button";
 import { decideApprovalAction } from "../actions";
 
 const riskTone = {
@@ -34,17 +36,17 @@ function DecisionButtons({ approval }: { readonly approval: Approval }): React.R
         <input name="approval_id" type="hidden" value={approval.id} />
         <input name="subject_version" type="hidden" value={approval.subject_version} />
         <input name="decision" type="hidden" value="approved" />
-        <button className="primary-button" type="submit">
+        <SubmitButton className="primary-button" pendingLabel="Aprovando…">
           Aprovar
-        </button>
+        </SubmitButton>
       </form>
       <form action={decideApprovalAction}>
         <input name="approval_id" type="hidden" value={approval.id} />
         <input name="subject_version" type="hidden" value={approval.subject_version} />
         <input name="decision" type="hidden" value="rejected" />
-        <button className="tertiary-button" type="submit">
+        <SubmitButton className="tertiary-button" pendingLabel="Rejeitando…">
           Rejeitar
-        </button>
+        </SubmitButton>
       </form>
     </div>
   );
@@ -84,7 +86,7 @@ export default async function ApprovalsPage(): Promise<React.ReactNode> {
         <Card>
           <p className="muted">
             Decidir uma aprovação exige confirmação de identidade (MFA).{" "}
-            <a href={`/app/step-up?returnTo=${returnTo}`}>Confirmar identidade</a>
+            <Link href={`/app/step-up?returnTo=${returnTo}`}>Confirmar identidade</Link>
           </p>
         </Card>
       ) : null}

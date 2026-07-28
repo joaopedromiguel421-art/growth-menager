@@ -131,6 +131,7 @@ export const integrationConnections = app.table(
     authorizedAt: timestamp("authorized_at", { withTimezone: true }),
     expiresAt: timestamp("expires_at", { withTimezone: true }),
     lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+    propertiesRefreshedAt: timestamp("properties_refreshed_at", { withTimezone: true }),
     errorCode: varchar("error_code", { length: 80 }),
     consentVersion: varchar("consent_version", { length: 32 }),
     metadata: jsonb("metadata").notNull().default({})
@@ -550,7 +551,12 @@ export const tasks = app.table(
     source: varchar("source", { length: 32 }).notNull(),
     completedAt: timestamp("completed_at", { withTimezone: true })
   },
-  (table) => [index("tasks_tenant_status_due_idx").on(table.tenantId, table.status, table.dueAt)]
+  (table) => [
+    index("tasks_tenant_status_due_idx").on(table.tenantId, table.status, table.dueAt),
+    index("tasks_tenant_open_due_idx")
+      .on(table.tenantId, table.dueAt)
+      .where(sql`${table.completedAt} is null`)
+  ]
 );
 
 export const approvals = app.table(
@@ -576,7 +582,7 @@ export const approvals = app.table(
     contentSha256: varchar("content_sha256", { length: 64 }).notNull()
   },
   (table) => [
-    index("approvals_tenant_status_idx").on(table.tenantId, table.status),
+    index("approvals_tenant_status_due_idx").on(table.tenantId, table.status, table.dueAt),
     index("approvals_assigned_status_due_idx").on(table.assignedTo, table.status, table.dueAt)
   ]
 );

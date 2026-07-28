@@ -17,6 +17,7 @@ import {
   decideApproval,
   decideRecommendation,
   disconnectConnection,
+  refreshConnectionProperties,
   requestConnectionSync,
   revokeInvitation,
   selectConnectionProperties,
@@ -290,6 +291,18 @@ export async function selectPropertiesAction(formData: FormData): Promise<void> 
     redirect(`/app/connections?error=${encodeURIComponent(result.message)}`);
   }
   revalidatePath("/app");
+  revalidatePath("/app/connections");
+}
+
+export async function refreshPropertiesAction(formData: FormData): Promise<void> {
+  const tenantId = await activeTenantId();
+  const provider = readProvider(formData);
+  if (tenantId === null || provider === null) return;
+
+  const result = await refreshConnectionProperties(tenantId, provider);
+  if (!result.ok) {
+    redirect(`/app/connections?error=${encodeURIComponent(result.message)}`);
+  }
   revalidatePath("/app/connections");
 }
 

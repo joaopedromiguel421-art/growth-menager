@@ -1,184 +1,143 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import type { Dashboard } from "@growth-manager/contracts";
-import { schema, type Database, type DatabaseClient } from "@growth-manager/database";
+import type { DatabaseClient } from "@growth-manager/database";
 import { requirePermission, type TenantContext } from "@growth-manager/domain";
 import { DATABASE } from "./database.provider.js";
+import { DashboardCacheService } from "./dashboard-cache.service.js";
 
 type SourceHealth = Dashboard["sources"][number];
 
-// A source the dashboard trusts must have synced within a day; a week without a
-// sync is treated as stale rather than merely late.
 const DEGRADED_AFTER_MS = 24 * 60 * 60 * 1000;
 const STALE_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
 
+interface SourceRow {
+  readonly provider: SourceHealth["provider"];
+  readonly connection_status: string;
+  readonly last_synced_at: string | null;
+}
+
+interface DashboardAggregateRow extends Record<string, unknown> {
+  readonly recommendations: Dashboard["recommendations"];
+  readonly tasks: Dashboard["tasks"];
+  readonly approvals: Dashboard["approvals"];
+  readonly sources: readonly SourceRow[];
+  readonly alerts_open: number;
+  readonly cost_amount: string;
+  readonly cost_currency: string | null;
+  readonly budget_limit: string;
+}
+
 @Injectable()
 export class DashboardService {
-  public constructor(@Inject(DATABASE) private readonly client: DatabaseClient) {}
+  public constructor(
+    @Inject(DATABASE) private readonly client: DatabaseClient,
+    private readonly cache: DashboardCacheService
+  ) {}
 
   public async get(context: TenantContext): Promise<Dashboard> {
     requirePermission(context, "tenant.read");
+    const cached = this.cache.get(context.tenantId);
+    if (cached !== undefined) return cached;
 
-    return this.client.withTenant(context, async (database) => {
-      const [recommendations, tasks, approvals, sources, alertsOpen, monthlyCost] =
-        await Promise.all([
-          database
-            .select()
-            .from(schema.recommendations)
-            .where(
-              and(
-                eq(schema.recommendations.tenantId, context.tenantId),
-                eq(schema.recommendations.status, "open")
-              )
-            )
-            .orderBy(desc(schema.recommendations.priorityScore))
-            .limit(5),
-          database
-            .select()
-            .from(schema.tasks)
-            .where(
-              and(eq(schema.tasks.tenantId, context.tenantId), isNull(schema.tasks.completedAt))
-            )
-            .orderBy(schema.tasks.dueAt)
-            .limit(5),
-          database
-            .select()
-            .from(schema.approvals)
-            .where(
-              and(
-                eq(schema.approvals.tenantId, context.tenantId),
-                eq(schema.approvals.status, "pending")
-              )
-            )
-            .orderBy(schema.approvals.dueAt)
-            .limit(5),
-          this.sources(database, context),
-          this.openAlerts(database, context),
-          this.monthlyCost(database, context)
-        ]);
-
-      return {
-        generated_at: new Date().toISOString(),
-        data_quality: dataQuality(sources),
-        recommendations: recommendations.map((item) => ({
-          id: item.id,
-          tenant_id: item.tenantId,
-          title: item.title,
-          description: item.description,
-          category: item.category,
-          status: item.status as "open",
-          priority_score: item.priorityScore,
-          risk: item.risk as "low" | "medium" | "high" | "critical",
-          confidence: Number(item.confidence),
-          rationale: item.rationale,
-          created_at: item.createdAt.toISOString()
-        })),
-        tasks: tasks.map((item) => ({
-          id: item.id,
-          tenant_id: item.tenantId,
-          recommendation_id: item.recommendationId,
-          title: item.title,
-          description: item.description,
-          status: item.status as
-            | "backlog"
-            | "todo"
-            | "in_progress"
-            | "blocked"
-            | "done"
-            | "cancelled",
-          priority: item.priority as "low" | "medium" | "high" | "urgent",
-          assignee_id: item.assigneeId,
-          due_at: item.dueAt?.toISOString() ?? null,
-          version: item.version
-        })),
-        approvals: approvals.map((item) => ({
-          id: item.id,
-          tenant_id: item.tenantId,
-          subject_type: item.subjectType as "review_reply" | "content" | "publication" | "report",
-          subject_id: item.subjectId,
-          subject_version: item.subjectVersion,
-          risk: item.risk as "low" | "medium" | "high" | "critical",
-          status: item.status as "pending",
-          requested_by: item.requestedBy,
-          assigned_to: item.assignedTo,
-          due_at: item.dueAt?.toISOString() ?? null
-        })),
-        sources,
-        alerts_open: alertsOpen,
-        monthly_cost: monthlyCost
-      };
+    const dashboard = await this.client.withTenant(context, async (database) => {
+      const rows = await database.execute<DashboardAggregateRow>(sql`
+        select
+          coalesce((
+            select jsonb_agg(to_jsonb(recommendation_row))
+            from (
+              select id, tenant_id, title, description, category, status,
+                     priority_score, risk, confidence::double precision as confidence,
+                     rationale, created_at
+              from app.recommendations
+              where tenant_id = ${context.tenantId}::uuid and status = 'open'
+              order by priority_score desc
+              limit 5
+            ) recommendation_row
+          ), '[]'::jsonb) as recommendations,
+          coalesce((
+            select jsonb_agg(to_jsonb(task_row))
+            from (
+              select id, tenant_id, recommendation_id, title, description, status,
+                     priority, assignee_id, due_at, version
+              from app.tasks
+              where tenant_id = ${context.tenantId}::uuid and completed_at is null
+              order by due_at nulls last
+              limit 5
+            ) task_row
+          ), '[]'::jsonb) as tasks,
+          coalesce((
+            select jsonb_agg(to_jsonb(approval_row))
+            from (
+              select id, tenant_id, subject_type, subject_id, subject_version, risk,
+                     status, requested_by, assigned_to, due_at
+              from app.approvals
+              where tenant_id = ${context.tenantId}::uuid and status = 'pending'
+              order by due_at nulls last
+              limit 5
+            ) approval_row
+          ), '[]'::jsonb) as approvals,
+          coalesce((
+            select jsonb_agg(to_jsonb(source_row))
+            from (
+              select provider, status as connection_status, last_synced_at
+              from app.integration_connections
+              where tenant_id = ${context.tenantId}::uuid and provider <> 'deepseek'
+            ) source_row
+          ), '[]'::jsonb) as sources,
+          (select count(*)::int
+             from app.alerts
+            where tenant_id = ${context.tenantId}::uuid
+              and status in ('open', 'acknowledged')) as alerts_open,
+          (select coalesce(sum(cost), 0)::text
+             from app.usage_events
+            where tenant_id = ${context.tenantId}::uuid
+              and occurred_at >= date_trunc('month', now())) as cost_amount,
+          (select min(currency)
+             from app.usage_events
+            where tenant_id = ${context.tenantId}::uuid
+              and occurred_at >= date_trunc('month', now())) as cost_currency,
+          (select coalesce(sum(soft_limit), 0)::text
+             from app.budgets
+            where tenant_id = ${context.tenantId}::uuid and period = 'monthly') as budget_limit
+      `);
+      const row = rows[0];
+      if (row === undefined) throw new Error("Dashboard aggregate returned no row.");
+      return toDashboard(row);
     });
+
+    this.cache.set(context.tenantId, dashboard);
+    return dashboard;
   }
+}
 
-  private async sources(database: Database, context: TenantContext): Promise<SourceHealth[]> {
-    const connections = await database
-      .select()
-      .from(schema.integrationConnections)
-      .where(eq(schema.integrationConnections.tenantId, context.tenantId));
-
-    return connections
-      .filter((row) => row.provider !== "deepseek")
-      .map((row) => {
-        const lastSyncedAt = row.lastSyncedAt;
-        return {
-          provider: row.provider as SourceHealth["provider"],
-          status: sourceStatus(row.status, lastSyncedAt),
-          last_synced_at: lastSyncedAt?.toISOString() ?? null,
-          freshness_label: freshnessLabel(lastSyncedAt)
-        };
-      });
-  }
-
-  private async openAlerts(database: Database, context: TenantContext): Promise<number> {
-    const rows = await database
-      .select({ total: sql<number>`count(*)::int` })
-      .from(schema.alerts)
-      .where(
-        and(
-          eq(schema.alerts.tenantId, context.tenantId),
-          inArray(schema.alerts.status, ["open", "acknowledged"])
-        )
-      );
-    return rows[0]?.total ?? 0;
-  }
-
-  private async monthlyCost(
-    database: Database,
-    context: TenantContext
-  ): Promise<Dashboard["monthly_cost"]> {
-    const monthStart = new Date();
-    monthStart.setUTCDate(1);
-    monthStart.setUTCHours(0, 0, 0, 0);
-
-    const [spend] = await database
-      .select({
-        amount: sql<string>`coalesce(sum(${schema.usageEvents.cost}), 0)::text`,
-        currency: sql<string | null>`min(${schema.usageEvents.currency})`
-      })
-      .from(schema.usageEvents)
-      .where(
-        and(
-          eq(schema.usageEvents.tenantId, context.tenantId),
-          gte(schema.usageEvents.occurredAt, monthStart)
-        )
-      );
-
-    const [budget] = await database
-      .select({ limit: sql<string>`coalesce(sum(${schema.budgets.softLimit}), 0)::text` })
-      .from(schema.budgets)
-      .where(
-        and(eq(schema.budgets.tenantId, context.tenantId), eq(schema.budgets.period, "monthly"))
-      );
-
-    const amount = Number(spend?.amount ?? 0);
-    const limit = Number(budget?.limit ?? 0);
+function toDashboard(row: DashboardAggregateRow): Dashboard {
+  const sources = row.sources.map((source) => {
+    const lastSyncedAt = source.last_synced_at === null ? null : new Date(source.last_synced_at);
     return {
-      amount,
-      currency: spend?.currency ?? "USD",
-      // Without a configured budget there is no meaningful percentage to report.
-      budget_percent: limit > 0 ? Math.round((amount / limit) * 100) : 0
+      provider: source.provider,
+      status: sourceStatus(source.connection_status, lastSyncedAt),
+      last_synced_at: lastSyncedAt?.toISOString() ?? null,
+      freshness_label: freshnessLabel(lastSyncedAt)
     };
-  }
+  });
+  const amount = Number(row.cost_amount);
+  const limit = Number(row.budget_limit);
+
+  return {
+    generated_at: new Date().toISOString(),
+    data_quality: dataQuality(sources),
+    recommendations: row.recommendations,
+    tasks: row.tasks,
+    approvals: row.approvals,
+    sources,
+    alerts_open: row.alerts_open,
+    monthly_cost: {
+      amount,
+      currency: row.cost_currency ?? "USD",
+      budget_percent: limit > 0 ? Math.round((amount / limit) * 100) : 0
+    }
+  };
 }
 
 function sourceStatus(connectionStatus: string, lastSyncedAt: Date | null): SourceHealth["status"] {
@@ -192,7 +151,7 @@ function sourceStatus(connectionStatus: string, lastSyncedAt: Date | null): Sour
 
 function freshnessLabel(lastSyncedAt: Date | null): string {
   if (lastSyncedAt === null) return "nunca sincronizado";
-  const minutes = Math.floor((Date.now() - lastSyncedAt.getTime()) / 60000);
+  const minutes = Math.floor((Date.now() - lastSyncedAt.getTime()) / 60_000);
   if (minutes < 60) return `há ${String(Math.max(minutes, 1))} min`;
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `há ${String(hours)} h`;

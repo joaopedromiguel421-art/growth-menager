@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 export const metadata: Metadata = { title: "Termos de uso" };
 
@@ -39,9 +40,9 @@ export default function TermsPage(): React.ReactNode {
           enviados para joao.pedro.miguel421@gmail.com.
         </p>
         <nav className="legal-links" aria-label="Links institucionais">
-          <a href="/sobre">Sobre</a>
-          <a href="/privacidade">Política de privacidade</a>
-          <a href="/login">Entrar</a>
+          <Link href="/sobre">Sobre</Link>
+          <Link href="/privacidade">Política de privacidade</Link>
+          <Link href="/login">Entrar</Link>
         </nav>
       </article>
     </main>

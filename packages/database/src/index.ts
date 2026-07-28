@@ -27,16 +27,13 @@ export function createDatabaseClient(databaseUrl: string): DatabaseClient {
     close: async () => client.end({ timeout: 5 }),
     withTenant: async <T>(context: TenantContext, operation: TenantTransaction<T>): Promise<T> =>
       database.transaction(async (transaction) => {
-        await transaction.execute(
-          sql`select set_config('app.tenant_id', ${context.tenantId}, true)`
-        );
-        await transaction.execute(sql`select set_config('app.user_id', ${context.userId}, true)`);
-        await transaction.execute(
-          sql`select set_config('app.auth_user_id', ${context.authUserId}, true)`
-        );
-        await transaction.execute(
-          sql`select set_config('app.system_actor', ${String(context.systemActor)}, true)`
-        );
+        await transaction.execute(sql`
+          select
+            set_config('app.tenant_id', ${context.tenantId}, true),
+            set_config('app.user_id', ${context.userId}, true),
+            set_config('app.auth_user_id', ${context.authUserId}, true),
+            set_config('app.system_actor', ${String(context.systemActor)}, true)
+        `);
         return operation(transaction);
       })
   };

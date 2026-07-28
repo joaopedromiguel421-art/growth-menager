@@ -2,6 +2,7 @@ import { Badge, Card, EmptyState } from "@growth-manager/ui";
 import { listRecommendations } from "../../../lib/api";
 import { loadWorkspace } from "../../../lib/session";
 import { NoTenantState, WorkspaceError } from "../../../components/workspace-error";
+import { SubmitButton } from "../../../components/submit-button";
 import { decideRecommendationAction } from "../actions";
 
 const riskTone = {
@@ -79,16 +80,16 @@ export default async function OpportunitiesPage(): Promise<React.ReactNode> {
                   <form action={decideRecommendationAction}>
                     <input name="recommendation_id" type="hidden" value={recommendation.id} />
                     <input name="decision" type="hidden" value="accepted" />
-                    <button className="primary-button" type="submit">
+                    <SubmitButton className="primary-button" pendingLabel="Aceitando…">
                       Aceitar e criar tarefa
-                    </button>
+                    </SubmitButton>
                   </form>
                   <form action={decideRecommendationAction}>
                     <input name="recommendation_id" type="hidden" value={recommendation.id} />
                     <input name="decision" type="hidden" value="dismissed" />
-                    <button className="tertiary-button" type="submit">
+                    <SubmitButton className="tertiary-button" pendingLabel="Descartando…">
                       Descartar
-                    </button>
+                    </SubmitButton>
                   </form>
                 </div>
               ) : null}
