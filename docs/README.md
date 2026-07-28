@@ -6,6 +6,7 @@
 - `seo/architecture.md`: especificação normativa do monitoramento contínuo de SEO.
 - `seo/evidence-policy.md`: contrato de achados, evidências, confiança e regressões.
 - `seo/provider-and-license-registry.md`: proveniência, licenças e limites dos providers.
+- `google-integrations.md`: OAuth, GA4, PSI/CrUX, GBP e regras de evidência Google.
 - `seo/rule-catalog.md`: catálogo inicial de capabilities e regras determinísticas.
 - `seo/rollout.md`: migração expand-contract, shadow mode e gates de produção.
 

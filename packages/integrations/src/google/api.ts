@@ -15,6 +15,8 @@ const BUSINESS_ACCOUNTS = "https://mybusinessaccountmanagement.googleapis.com/v1
 const BUSINESS_INFORMATION = "https://mybusinessbusinessinformation.googleapis.com/v1";
 const BUSINESS_PERFORMANCE = "https://businessprofileperformance.googleapis.com/v1";
 const SEARCH_CONSOLE = "https://searchconsole.googleapis.com/webmasters/v3";
+const ANALYTICS_ADMIN = "https://analyticsadmin.googleapis.com/v1beta";
+const ANALYTICS_DATA = "https://analyticsdata.googleapis.com/v1beta";
 
 // Metrics the priority cards need: how often the listing surfaced and how often
 // someone acted on it.
@@ -71,6 +73,133 @@ export async function listSearchConsoleSites(accessToken: string): Promise<Prope
     candidates.push({ kind: "site", externalId: entry.siteUrl, name: entry.siteUrl });
   }
   return candidates;
+}
+
+export async function listAnalyticsProperties(
+  accessToken: string,
+  fetchImpl: typeof fetch = fetch
+): Promise<PropertyCandidate[]> {
+  const candidates: PropertyCandidate[] = [];
+  let pageToken: string | undefined;
+  let page = 0;
+
+  do {
+    const url = new URL(`${ANALYTICS_ADMIN}/accountSummaries`);
+    url.searchParams.set("pageSize", "200");
+    if (pageToken !== undefined) url.searchParams.set("pageToken", pageToken);
+    const response = await fetchImpl(url, {
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" }
+    });
+    if (!response.ok) {
+      throw new Error(
+        `Google Analytics property listing failed with status ${response.status.toString()}`
+      );
+    }
+    const body = asRecord(await response.json());
+    candidates.push(...analyticsPropertyCandidates(body));
+    pageToken = typeof body.nextPageToken === "string" ? body.nextPageToken : undefined;
+    page += 1;
+  } while (pageToken !== undefined && page < 5);
+
+  return candidates;
+}
+
+export interface GoogleAnalyticsReport {
+  readonly metrics: readonly DailyMetric[];
+  readonly quota: Readonly<Record<string, unknown>> | null;
+}
+
+const GA4_METRIC_NAMES: Readonly<Record<string, string>> = {
+  sessions: "GA4_SESSIONS",
+  totalUsers: "GA4_TOTAL_USERS",
+  eventCount: "GA4_EVENT_COUNT",
+  keyEvents: "GA4_KEY_EVENTS"
+};
+
+export async function runAnalyticsReport(
+  input: {
+    readonly accessToken: string;
+    readonly propertyId: string;
+    readonly start: Date;
+    readonly end: Date;
+  },
+  fetchImpl: typeof fetch = fetch
+): Promise<GoogleAnalyticsReport> {
+  if (!/^properties\/\d+$/.test(input.propertyId)) {
+    throw new Error("Google Analytics property ID has an invalid format");
+  }
+  const response = await fetchImpl(`${ANALYTICS_DATA}/${input.propertyId}:runReport`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${input.accessToken}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      dateRanges: [{ startDate: isoDate(input.start), endDate: isoDate(input.end) }],
+      dimensions: [{ name: "date" }],
+      metrics: Object.keys(GA4_METRIC_NAMES).map((name) => ({ name })),
+      limit: "250000",
+      returnPropertyQuota: true
+    })
+  });
+  if (!response.ok) {
+    throw new Error(`Google Analytics report failed with status ${response.status.toString()}`);
+  }
+  const body = asRecord(await response.json());
+  const dimensionHeaders = asRecords(body.dimensionHeaders).map((item) => item.name);
+  const metricHeaders = asRecords(body.metricHeaders).map((item) => item.name);
+  if (dimensionHeaders[0] !== "date") throw new Error("Google Analytics response omitted date");
+
+  return {
+    metrics: normalizeAnalyticsRows(body, metricHeaders, input.propertyId),
+    quota: isRecord(body.propertyQuota) ? body.propertyQuota : null
+  };
+}
+
+function analyticsPropertyCandidates(
+  body: Readonly<Record<string, unknown>>
+): readonly PropertyCandidate[] {
+  return asRecords(body.accountSummaries).flatMap((account) =>
+    asRecords(account.propertySummaries).flatMap((property) => {
+      if (typeof property.property !== "string") return [];
+      return [
+        {
+          kind: "ga4_property",
+          externalId: property.property,
+          name: typeof property.displayName === "string" ? property.displayName : property.property
+        }
+      ];
+    })
+  );
+}
+
+function normalizeAnalyticsRows(
+  body: Readonly<Record<string, unknown>>,
+  headers: readonly unknown[],
+  propertyId: string
+): readonly DailyMetric[] {
+  return asRecords(body.rows).flatMap((row) => {
+    const rawDate = asRecords(row.dimensionValues)[0]?.value;
+    const date = typeof rawDate === "string" ? compactDate(rawDate) : null;
+    if (date === null) return [];
+    const values = asRecords(row.metricValues);
+    return headers.flatMap((header, index) =>
+      analyticsMetric(header, values[index]?.value, date, propertyId)
+    );
+  });
+}
+
+function analyticsMetric(
+  header: unknown,
+  rawValue: unknown,
+  date: string,
+  propertyId: string
+): readonly DailyMetric[] {
+  if (typeof header !== "string" || typeof rawValue !== "string") return [];
+  const metric = GA4_METRIC_NAMES[header];
+  const value = Number(rawValue);
+  if (metric === undefined || !Number.isFinite(value)) return [];
+  return [{ metric, date, value, dimensions: { property: propertyId } }];
 }
 
 export async function fetchBusinessPerformance(input: {
@@ -353,4 +482,21 @@ function toIsoDate(value: GoogleDate | undefined): string | null {
   const month = String(value.month).padStart(2, "0");
   const day = String(value.day).padStart(2, "0");
   return `${String(value.year)}-${month}-${day}`;
+}
+
+function compactDate(value: string): string | null {
+  if (!/^\d{8}$/.test(value)) return null;
+  return `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6, 8)}`;
+}
+
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function asRecord(value: unknown): Readonly<Record<string, unknown>> {
+  return isRecord(value) ? value : {};
+}
+
+function asRecords(value: unknown): readonly Readonly<Record<string, unknown>>[] {
+  return Array.isArray(value) ? value.filter(isRecord) : [];
 }

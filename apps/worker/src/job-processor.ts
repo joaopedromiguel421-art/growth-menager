@@ -26,7 +26,7 @@ export interface JobResult {
 }
 
 const externalWriteJobs = new Set<JobEnvelope["job_type"]>(["publish_reply", "publish_content"]);
-const realSyncProviders = new Set<string>(["google_business", "search_console"]);
+const realSyncProviders = new Set<string>(["google_business", "search_console", "ga4"]);
 
 export class JobProcessor {
   private readonly seo: SeoAnalysisProcessor;
@@ -102,11 +102,14 @@ export class JobProcessor {
 
       // Runs in the same transaction as the sync: metrics without the priorities
       // derived from them would leave the dashboard empty until the next run.
-      const engine = await generateRecommendations({
-        database,
-        context,
-        provider: provider as SyncableProvider
-      });
+      const engine =
+        provider === "ga4"
+          ? { created: 0, updated: 0 }
+          : await generateRecommendations({
+              database,
+              context,
+              provider: provider as "google_business" | "search_console"
+            });
 
       return {
         status: "completed",

@@ -29,6 +29,12 @@ const providers: readonly {
     name: "Google Search Console",
     description: "Cliques, impressões, CTR e posição média nas buscas.",
     propertyLabel: "Propriedades verificadas"
+  },
+  {
+    provider: "ga4",
+    name: "Google Analytics 4",
+    description: "Sessões, usuários, eventos e conversões agregadas das propriedades GA4.",
+    propertyLabel: "Propriedades GA4"
   }
 ];
 

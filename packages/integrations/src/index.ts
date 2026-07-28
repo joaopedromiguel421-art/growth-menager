@@ -88,6 +88,7 @@ export class FakeProviderAdapter implements ProviderAdapter {
 export * from "./resend.js";
 export * from "./google/oauth.js";
 export * from "./google/api.js";
+export * from "./google/performance.js";
 export * from "./seo/ports.js";
 export * from "./seo/safe-fetch.js";
 export * from "./seo/deepseek.js";

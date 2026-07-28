@@ -8,12 +8,13 @@ import {
   fetchReviews,
   querySearchAnalytics,
   refreshAccessToken,
+  runAnalyticsReport,
   type DailyMetric,
   type GoogleOAuthConfig,
   type ReviewRecord
 } from "@growth-manager/integrations";
 
-export type SyncableProvider = "google_business" | "search_console";
+export type SyncableProvider = "google_business" | "search_console" | "ga4";
 
 export interface SyncOutcome {
   readonly recordsRead: number;
@@ -249,6 +250,15 @@ async function readMetrics(input: {
       start: input.start,
       end: input.end
     });
+  }
+  if (input.provider === "ga4") {
+    const report = await runAnalyticsReport({
+      accessToken: input.accessToken,
+      propertyId: input.externalId,
+      start: input.start,
+      end: input.end
+    });
+    return report.metrics;
   }
   // Two passes: the site-level totals answer "is traffic moving", and the query
   // and page breakdown is what a recommendation can actually name an action on.

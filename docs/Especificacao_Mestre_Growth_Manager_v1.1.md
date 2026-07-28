@@ -2853,6 +2853,16 @@ Cada adapter implementa `authorize`, `health`, `read`, `write`, `reconcile`, `ma
 | Privacidade/fallback | proibir User-ID, Client-ID e dimensão que identifique pessoa; usar agregados. Falha mantém snapshot e não substitui por Search Console |
 | Custo/alerta | fórmula: tokens/chamadas × preço vigente + processamento; alertas em 70/90% de quota e atraso >48 h |
 
+### 21.4.1 PageSpeed Insights e Chrome UX Report
+
+| Item | Especificação |
+|---|---|
+| Finalidade | PSI fornece Lighthouse laboratorial; CrUX fornece Core Web Vitals observados em campo. As fontes nunca são misturadas. |
+| Autenticação | API key central restrita às APIs PageSpeed Insights e Chrome UX Report; nenhuma chave é enviada ao cliente. |
+| Dados | PSI: performance score, LCP, CLS, INP/TBT e auditorias disponíveis. CrUX: LCP, CLS e INP por URL/origin e form factor. Campo ausente permanece `unknown`. |
+| Evidência | resposta bruta imutável, request hash, URL normalizada, estratégia/form factor, captura e freshness. Lighthouse é rotulado `derived`; CrUX é `observed`. |
+| Limites | rate limit e circuit breaker por projeto; cache de 6 h para PSI e 24 h para CrUX; nenhum retry cego após resposta parcial. |
+
 ### 21.5 Instagram Platform
 
 | Item | Especificação |

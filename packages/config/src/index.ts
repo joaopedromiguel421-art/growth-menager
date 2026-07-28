@@ -24,6 +24,7 @@ const configSchema = z
     CRON_SECRET: z.string().min(32),
     GOOGLE_CLIENT_ID: z.string().min(1).default("not-configured"),
     GOOGLE_CLIENT_SECRET: z.string().min(1).default("not-configured"),
+    GOOGLE_API_KEY: z.string().min(1).default("not-configured"),
     DATAFORSEO_LOGIN: z.string().min(1).default("not-configured"),
     DATAFORSEO_PASSWORD: z.string().min(1).default("not-configured"),
     DEEPSEEK_API_KEY: z.string().min(1).default("not-configured"),

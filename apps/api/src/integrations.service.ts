@@ -18,6 +18,7 @@ import {
   createPkcePair,
   createStateToken,
   exchangeCode,
+  listAnalyticsProperties,
   listBusinessLocations,
   listSearchConsoleSites,
   refreshAccessToken,
@@ -434,6 +435,7 @@ export class IntegrationsService {
   ): Promise<readonly PropertyCandidate[]> {
     if (provider === "google_business") return listBusinessLocations(accessToken);
     if (provider === "search_console") return listSearchConsoleSites(accessToken);
+    if (provider === "ga4") return listAnalyticsProperties(accessToken);
     throw new DomainError(
       "GM-INTEGRATION-UNSUPPORTED",
       "Este provedor ainda não lista propriedades.",

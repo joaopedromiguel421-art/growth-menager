@@ -35,6 +35,10 @@ export default function LoginPage(): React.ReactNode {
             Acesso somente por convite.{" "}
             <a href="mailto:suporte@growthmanager.com.br">Precisa de ajuda?</a>
           </p>
+          <p className="login-help">
+            Ao continuar, você concorda com os <a href="/termos">Termos de uso</a> e a{" "}
+            <a href="/privacidade">Política de privacidade</a>.
+          </p>
         </div>
       </section>
     </main>

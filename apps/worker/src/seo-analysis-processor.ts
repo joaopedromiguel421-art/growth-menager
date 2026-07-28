@@ -11,10 +11,14 @@ import {
   type TenantContext
 } from "@growth-manager/domain";
 import {
+  ChromeUxReportClient,
   DeepSeekHttpGateway,
+  PageSpeedInsightsClient,
   SafeFetchClient,
   SupabaseRawArtifactStore,
-  pseudonymousDeepSeekUserId
+  pseudonymousDeepSeekUserId,
+  type ChromeUxResult,
+  type PageSpeedResult
 } from "@growth-manager/integrations";
 import {
   analyzeContentPage,
@@ -500,6 +504,14 @@ export class SeoAnalysisProcessor {
       drafts = analyzeStructuredData({ document, context: ruleContext });
     } else if (capabilityCode === "drift") {
       drafts = await this.driftFindings(database, context, runId, first.page.id, ruleContext);
+    } else if (capabilityCode === "performance") {
+      drafts = await this.performanceFindings(
+        database,
+        context,
+        runId,
+        first.page.targetId,
+        document.url
+      );
     } else if (!["sitemap", "local", "google"].includes(capabilityCode)) {
       return { findings: [], skippedReason: "provider_unavailable" };
     }
@@ -508,6 +520,154 @@ export class SeoAnalysisProcessor {
       await this.persistFinding(database, context, runId, first.page.id, draft);
     }
     return { findings: drafts };
+  }
+
+  private async performanceFindings(
+    database: Database,
+    context: TenantContext,
+    runId: string,
+    targetId: string,
+    url: string
+  ): Promise<readonly SeoFindingDraft[]> {
+    if (this.config.GOOGLE_API_KEY === "not-configured") return [];
+    const pageSpeed = new PageSpeedInsightsClient({ apiKey: this.config.GOOGLE_API_KEY });
+    const crux = new ChromeUxReportClient({ apiKey: this.config.GOOGLE_API_KEY });
+    const [pageSpeedResult, cruxResult] = await Promise.allSettled([
+      pageSpeed.read({ url, strategy: "mobile" }),
+      crux.read({ url, formFactor: "PHONE" })
+    ]);
+    const drafts: SeoFindingDraft[] = [];
+    if (pageSpeedResult.status === "fulfilled") {
+      const evidenceId = await this.persistProviderEvidence(database, context, runId, {
+        provider: "pagespeed",
+        url,
+        capturedAt: pageSpeedResult.value.capturedAt,
+        facts: { observation_kind: "derived", ...pageSpeedResult.value.data }
+      });
+      drafts.push(
+        ...performanceRuleFindings(
+          {
+            targetId,
+            evidenceId,
+            capturedAt: pageSpeedResult.value.capturedAt.toISOString(),
+            source: "pagespeed",
+            coverage: 1,
+            freshness: 1,
+            agreement: 1
+          },
+          pageSpeedResult.value.data
+        )
+      );
+    }
+    if (cruxResult.status === "fulfilled") {
+      const evidenceId = await this.persistProviderEvidence(database, context, runId, {
+        provider: "crux",
+        url,
+        capturedAt: cruxResult.value.capturedAt,
+        facts: { observation_kind: "observed", ...cruxResult.value.data }
+      });
+      drafts.push(
+        ...performanceRuleFindings(
+          {
+            targetId,
+            evidenceId,
+            capturedAt: cruxResult.value.capturedAt.toISOString(),
+            source: "crux",
+            coverage: 1,
+            freshness: 1,
+            agreement: 1
+          },
+          cruxResult.value.data
+        )
+      );
+    }
+    if (pageSpeedResult.status === "rejected" && cruxResult.status === "rejected") {
+      throw new Error("Google performance providers are unavailable");
+    }
+    return drafts;
+  }
+
+  private async persistProviderEvidence(
+    database: Database,
+    context: TenantContext,
+    runId: string,
+    input: {
+      readonly provider: "pagespeed" | "crux";
+      readonly url: string;
+      readonly capturedAt: Date;
+      readonly facts: Readonly<Record<string, unknown>>;
+    }
+  ): Promise<string> {
+    const proposedRawImportId = newId();
+    const digest = await sha256Hex(JSON.stringify(input.facts));
+    const artifact = await this.artifacts.putJson({
+      tenantId: context.tenantId,
+      category: input.provider,
+      artifactId: `${runId}-${input.provider}`,
+      value: input.facts
+    });
+    const insertedRawImports = await database
+      .insert(schema.rawImports)
+      .values({
+        id: proposedRawImportId,
+        tenantId: context.tenantId,
+        provider: input.provider,
+        resourceType: "seo_performance",
+        resourceId: input.url,
+        capturedAt: input.capturedAt,
+        objectKey: artifact.objectKey,
+        sha256: digest,
+        schemaVersion: "google-performance-v1",
+        expiresAt: addDays(input.capturedAt, 90)
+      })
+      .onConflictDoNothing()
+      .returning({ id: schema.rawImports.id });
+    const rawImportId =
+      insertedRawImports[0]?.id ??
+      (
+        await database
+          .select({ id: schema.rawImports.id })
+          .from(schema.rawImports)
+          .where(
+            and(
+              eq(schema.rawImports.tenantId, context.tenantId),
+              eq(schema.rawImports.objectKey, artifact.objectKey)
+            )
+          )
+          .limit(1)
+      )[0]?.id;
+    if (rawImportId === undefined) throw new Error("Could not resolve performance raw import");
+    const proposedEvidenceId = newId();
+    const insertedEvidence = await database
+      .insert(schema.evidence)
+      .values({
+        id: proposedEvidenceId,
+        tenantId: context.tenantId,
+        source: input.provider,
+        sourceRef: input.url,
+        capturedAt: input.capturedAt,
+        title: `${input.provider} para ${input.url}`,
+        excerpt: "Métricas de performance coletadas pela API Google.",
+        facts: input.facts,
+        sha256: digest,
+        freshUntil: addDays(input.capturedAt, input.provider === "crux" ? 30 : 7),
+        rawImportId
+      })
+      .onConflictDoNothing()
+      .returning({ id: schema.evidence.id });
+    const evidenceId =
+      insertedEvidence[0]?.id ??
+      (
+        await database
+          .select({ id: schema.evidence.id })
+          .from(schema.evidence)
+          .where(
+            and(eq(schema.evidence.tenantId, context.tenantId), eq(schema.evidence.sha256, digest))
+          )
+          .limit(1)
+      )[0]?.id;
+    if (evidenceId === undefined) throw new Error("Could not resolve performance evidence");
+    return evidenceId;
   }
 
   private async driftFindings(
@@ -1201,6 +1361,11 @@ export class SeoAnalysisProcessor {
       );
     const integrations = new Set(rows.map((row) => row.provider));
     if (integrations.has("search_console")) integrations.add("performance");
+    if (this.config.GOOGLE_API_KEY !== "not-configured") {
+      integrations.add("page_speed");
+      integrations.add("crux");
+      integrations.add("performance");
+    }
     if (
       integrations.has("dataforseo") &&
       this.config.DATAFORSEO_LOGIN !== "not-configured" &&
@@ -1451,6 +1616,150 @@ function crawlPolicy(value: unknown): {
     timeoutMs: boundedNumber(record.timeout_ms, 30_000, 1_000, 60_000),
     maxRedirects: boundedNumber(record.max_redirects, 3, 0, 5)
   };
+}
+
+function performanceRuleFindings(
+  context: SeoRuleContext,
+  result: PageSpeedResult | ChromeUxResult
+): readonly SeoFindingDraft[] {
+  const findings: SeoFindingDraft[] = [];
+  if (result.source === "pagespeed") {
+    if (result.performanceScore !== null && result.performanceScore < 0.9) {
+      findings.push(
+        performanceFinding(context, result.source, {
+          code: "SEO-PERF-PSI-SCORE",
+          severity: result.performanceScore < 0.5 ? "high" : "medium",
+          title: "Pontuação Lighthouse abaixo do recomendado",
+          description: `O Lighthouse observou pontuação de performance ${result.performanceScore.toFixed(2)} na estratégia ${result.strategy}.`,
+          recommendation:
+            "Revise os diagnósticos do Lighthouse e priorize os recursos que afetam a renderização inicial.",
+          metricKey: "pagespeed.performance_score"
+        })
+      );
+    }
+    addPerformanceMetric(findings, context, result.source, {
+      value: result.lcpMs,
+      code: "SEO-PERF-PSI-LCP",
+      metricName: "LCP de laboratório",
+      metricKey: "pagespeed.lcp_ms",
+      unit: "ms",
+      mediumThreshold: 2_500,
+      highThreshold: 4_000,
+      recommendation:
+        "Otimize o recurso LCP, a resposta do servidor e o caminho crítico de renderização."
+    });
+    addPerformanceMetric(findings, context, result.source, {
+      value: result.cls,
+      code: "SEO-PERF-PSI-CLS",
+      metricName: "CLS de laboratório",
+      metricKey: "pagespeed.cls",
+      unit: "",
+      mediumThreshold: 0.1,
+      highThreshold: 0.25,
+      recommendation:
+        "Reserve espaço para mídia e componentes dinâmicos e elimine mudanças inesperadas de layout."
+    });
+    addPerformanceMetric(findings, context, result.source, {
+      value: result.totalBlockingTimeMs,
+      code: "SEO-PERF-PSI-TBT",
+      metricName: "Total Blocking Time",
+      metricKey: "pagespeed.total_blocking_time_ms",
+      unit: "ms",
+      mediumThreshold: 200,
+      highThreshold: 600,
+      recommendation: "Reduza tarefas longas de JavaScript e divida trabalho da thread principal."
+    });
+    return findings;
+  }
+  addPerformanceMetric(findings, context, result.source, {
+    value: result.lcpMs,
+    code: "SEO-PERF-CRUX-LCP",
+    metricName: "LCP de campo (p75)",
+    metricKey: "crux.lcp_ms_p75",
+    unit: "ms",
+    mediumThreshold: 2_500,
+    highThreshold: 4_000,
+    recommendation:
+      "Priorize melhorias no carregamento do maior elemento visível para usuários reais."
+  });
+  addPerformanceMetric(findings, context, result.source, {
+    value: result.cls,
+    code: "SEO-PERF-CRUX-CLS",
+    metricName: "CLS de campo (p75)",
+    metricKey: "crux.cls_p75",
+    unit: "",
+    mediumThreshold: 0.1,
+    highThreshold: 0.25,
+    recommendation: "Estabilize o layout para reduzir deslocamentos percebidos por usuários reais."
+  });
+  addPerformanceMetric(findings, context, result.source, {
+    value: result.inpMs,
+    code: "SEO-PERF-CRUX-INP",
+    metricName: "INP de campo (p75)",
+    metricKey: "crux.inp_ms_p75",
+    unit: "ms",
+    mediumThreshold: 200,
+    highThreshold: 500,
+    recommendation:
+      "Reduza o trabalho síncrono após interações e a duração das tarefas da thread principal."
+  });
+  return findings;
+}
+
+function addPerformanceMetric(
+  findings: SeoFindingDraft[],
+  context: SeoRuleContext,
+  provider: "pagespeed" | "crux",
+  input: {
+    readonly value: number | null;
+    readonly code: string;
+    readonly metricName: string;
+    readonly metricKey: string;
+    readonly unit: string;
+    readonly mediumThreshold: number;
+    readonly highThreshold: number;
+    readonly recommendation: string;
+  }
+): void {
+  if (input.value === null || input.value <= input.mediumThreshold) return;
+  findings.push(
+    performanceFinding(context, provider, {
+      code: input.code,
+      severity: input.value > input.highThreshold ? "high" : "medium",
+      title: `${input.metricName} acima do recomendado`,
+      description: `${input.metricName} observado: ${String(input.value)}${input.unit}.`,
+      recommendation: input.recommendation,
+      metricKey: input.metricKey
+    })
+  );
+}
+
+function performanceFinding(
+  context: SeoRuleContext,
+  provider: "pagespeed" | "crux",
+  input: {
+    readonly code: string;
+    readonly severity: "high" | "medium";
+    readonly title: string;
+    readonly description: string;
+    readonly recommendation: string;
+    readonly metricKey: string;
+  }
+): SeoFindingDraft {
+  const finding = ruleFinding(context, {
+    code: input.code,
+    category: "performance",
+    severity: input.severity,
+    title: input.title,
+    description: input.description,
+    recommendation: input.recommendation,
+    impactBand: input.severity,
+    affectedScope: "URL analisada",
+    metricKeys: [input.metricKey],
+    capabilityCode: "performance",
+    ruleVersion: "google-performance/1.0.0"
+  });
+  return { ...finding, origin: { ...finding.origin, provider } };
 }
 
 function driftCategory(kind: string): "technical" | "content" | "schema" {
